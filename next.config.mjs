@@ -11,10 +11,13 @@ const nextConfig = {
     root: import.meta.dirname,
   },
   images: {
+    // App images go through our own /img proxy; only TMDB is a legitimate
+    // remote source. A wildcard here would let anyone use /_next/image as an
+    // open proxy for arbitrary hosts.
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: 'image.tmdb.org',
       },
     ],
   },

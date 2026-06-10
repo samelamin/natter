@@ -13,11 +13,12 @@
     "start": "next start",
     "lint": "eslint",
     "pretest": "node -e \"const fs=require('fs');const want=parseInt(fs.readFileSync('.nvmrc','utf8'),10);const got=parseInt(process.versions.node,10);if(got<want){console.error('\\nNatter needs Node >='+want+' (.nvmrc) — you are on '+process.version+'. Run: nvm use\\n');process.exit(1)}\"",
-    "test": "node --experimental-vm-modules --test tests/agent.test.js tests/resilience.test.js tests/share.test.js tests/tmdb.test.js tests/usage.test.js"
+    "test": "node --experimental-vm-modules --test tests/accounts.test.js tests/agent.test.js tests/resilience.test.js tests/share.test.js tests/tmdb.test.js tests/usage.test.js"
   },
   "dependencies": {
     "next": "16.2.9",
     "openai": "^6.42.0",
+    "pg": "^8.21.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },

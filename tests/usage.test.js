@@ -6,8 +6,13 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 
 import { buildUsageLine, logUsage } from '../lib/usage.js';
+
+// Usage lines land in a PUBLICLY viewable Grafana — raw IPs must never appear.
+// The line carries a short stable hash instead (unique-visitor counts survive).
+const ipHash = (ip) => createHash('sha256').update(ip).digest('hex').slice(0, 12);
 
 // Fake a Next route-handler Request: only .headers (a Headers) is used.
 function req(headers = {}) {
@@ -42,11 +47,21 @@ test('buildUsageLine: full search line from Cloudflare headers', () => {
     lang: 'ar',
     picksCount: 6,
     ok: true,
-    ip: '203.0.113.7',
+    ip: ipHash('203.0.113.7'),
     country: 'GB',
     ua: 'Mozilla/5.0',
     ms: 1234,
   });
+});
+
+test('buildUsageLine: never emits a raw client IP', () => {
+  const line = buildUsageLine({
+    request: req({ 'cf-connecting-ip': '203.0.113.7' }),
+    route: 'recommend',
+  });
+  assert.ok(!JSON.stringify(line).includes('203.0.113.7'), 'raw IP must not appear anywhere');
+  assert.equal(typeof line.ip, 'string');
+  assert.equal(line.ip.length, 12);
 });
 
 test('buildUsageLine: evt marker is always "usage"', () => {
@@ -71,7 +86,7 @@ test('buildUsageLine: cf-connecting-ip wins over x-forwarded-for', () => {
     request: req({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '198.51.100.9' }),
     route: 'recommend',
   });
-  assert.equal(line.ip, '203.0.113.7');
+  assert.equal(line.ip, ipHash('203.0.113.7'));
 });
 
 test('buildUsageLine: ip falls back to first X-Forwarded-For hop', () => {
@@ -79,7 +94,7 @@ test('buildUsageLine: ip falls back to first X-Forwarded-For hop', () => {
     request: req({ 'x-forwarded-for': '198.51.100.9, 70.41.3.18, 150.172.238.178' }),
     route: 'recommend',
   });
-  assert.equal(line.ip, '198.51.100.9');
+  assert.equal(line.ip, ipHash('198.51.100.9'));
 });
 
 test('buildUsageLine: ip falls back to x-real-ip when no CF or XFF', () => {
@@ -87,7 +102,7 @@ test('buildUsageLine: ip falls back to x-real-ip when no CF or XFF', () => {
     request: req({ 'x-real-ip': '192.0.2.44' }),
     route: 'recommend',
   });
-  assert.equal(line.ip, '192.0.2.44');
+  assert.equal(line.ip, ipHash('192.0.2.44'));
 });
 
 test('buildUsageLine: ok:false is preserved', () => {

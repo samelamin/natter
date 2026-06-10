@@ -9,7 +9,7 @@ import {
 import { Icons } from '@/components/natter/Icons.jsx';
 import { ShareButton } from '@/components/natter/ShareButton.jsx';
 
-export function DetailModal({ item, picks = [], onClose, onOpen }) {
+export function DetailModal({ item, picks = [], saved = false, onToggleSave, onClose, onOpen }) {
   const [enriched, setEnriched] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState(false);
@@ -116,12 +116,33 @@ export function DetailModal({ item, picks = [], onClose, onOpen }) {
               <p className="detail__synopsis" style={{ marginTop: 18 }}>
                 {data.synopsis || data.blurb}
               </p>
+              {item.reason && (
+                <p
+                  className="detail__synopsis"
+                  style={{ marginTop: 10, color: 'var(--accent)', fontStyle: 'italic' }}
+                >
+                  <Icons.sparkles /> Why this pick: {item.reason}
+                </p>
+              )}
               <div className="detail__actions">
-                <Button variant="brand" size="lg" iconLeft={<Icons.play />}>
-                  {data.on ? `Play on ${data.on}` : 'Play'}
+                <Button
+                  variant="brand"
+                  size="lg"
+                  iconLeft={<Icons.play />}
+                  onClick={() => {
+                    const link = data.watch?.link;
+                    if (link) window.open(link, '_blank', 'noopener,noreferrer');
+                  }}
+                >
+                  {data.on ? `Play on ${data.on}` : 'Where to watch'}
                 </Button>
-                <Button variant="secondary" size="lg" iconLeft={<Icons.bookmark />}>
-                  Watchlist
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  iconLeft={saved ? <Icons.check /> : <Icons.bookmark />}
+                  onClick={() => onToggleSave && onToggleSave(item)}
+                >
+                  {saved ? 'Saved' : 'Watchlist'}
                 </Button>
                 <ShareButton item={data} variant="solid" size="lg" />
               </div>

@@ -26,6 +26,16 @@ function getTranscriber() {
 export async function POST(request) {
   const startedAt = Date.now();
   try {
+    // Transcription costs per call — cap per IP.
+    const { rateLimited } = await import('@/lib/auth.js');
+    const ip =
+      request.headers.get('cf-connecting-ip') ||
+      (request.headers.get('x-forwarded-for') || '').split(',')[0].trim() ||
+      'local';
+    if (rateLimited(`tr:${ip}`, { max: 15, windowMs: 10 * 60_000 })) {
+      return NextResponse.json({ error: 'Too many voice requests — try again shortly.' }, { status: 429 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('audio');
 

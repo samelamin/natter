@@ -40,8 +40,9 @@ services:
       - GF_USERS_VIEWERS_CAN_EDIT=false
       - GF_USERS_DEFAULT_THEME=dark
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/natter-usage.json
-      # Set NATTER_GRAFANA_ADMIN_PASSWORD in the environment for a public deploy.
-      - GF_SECURITY_ADMIN_PASSWORD=${NATTER_GRAFANA_ADMIN_PASSWORD:-natter-admin}
+      # REQUIRED: set NATTER_GRAFANA_ADMIN_PASSWORD in the environment — compose
+      # fails closed instead of shipping a guessable default to a public deploy.
+      - GF_SECURITY_ADMIN_PASSWORD=${NATTER_GRAFANA_ADMIN_PASSWORD:?set NATTER_GRAFANA_ADMIN_PASSWORD}
       - GF_ANALYTICS_REPORTING_ENABLED=false
       - GF_ANALYTICS_CHECK_FOR_UPDATES=false
     volumes:

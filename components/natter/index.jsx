@@ -393,12 +393,27 @@ export function Billboard({ item, onPlay, onDetails, onAdd }) {
           ].filter(Boolean)} />
         </div>
         <p className="billboard__blurb">{item.synopsis || item.blurb}</p>
+        {item.reason && (
+          <p
+            className="billboard__blurb"
+            style={{ color: 'var(--accent)', fontStyle: 'italic', marginTop: 6 }}
+          >
+            <Icons.sparkles /> {item.reason}
+          </p>
+        )}
         <div className="billboard__btns">
           <Button variant="brand" size="lg" iconLeft={<Icons.play />} onClick={onPlay}>
             Play{item.on ? ` on ${item.on}` : ''}
           </Button>
           <Button variant="secondary" size="lg" iconLeft={<Icons.info />} onClick={onDetails}>More info</Button>
-          <IconButton variant="solid" size="lg" round label="Add to watchlist" icon={<Icons.plus />} onClick={onAdd} />
+          <IconButton
+            variant="solid"
+            size="lg"
+            round
+            label={item.inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+            icon={item.inWatchlist ? <Icons.check /> : <Icons.plus />}
+            onClick={onAdd}
+          />
           <ShareButton item={item} variant="solid" size="lg" round />
         </div>
       </div>
@@ -455,7 +470,9 @@ export function PosterCard({ item, onPlay, onAdd, onClick }) {
         <div className="nat-poster__title">{item.title}</div>
         <MetaRow items={meta} />
         {item.rating && <RatingStars value={item.rating} />}
-        {item.blurb && <div className="nat-poster__blurb">{item.blurb}</div>}
+        {(item.reason || item.blurb) && (
+          <div className="nat-poster__blurb">{item.reason || item.blurb}</div>
+        )}
         <div className="nat-poster__foot">
           {item.watch && item.watch.stream && item.watch.stream.length
             ? <ProviderLogoRow providers={item.watch.stream} />
@@ -466,8 +483,8 @@ export function PosterCard({ item, onPlay, onAdd, onClick }) {
               </span>}
           <IconButton
             variant="ghost" size="sm"
-            label="Add to watchlist"
-            icon={<Icons.plus />}
+            label={item.inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+            icon={item.inWatchlist ? <Icons.check /> : <Icons.plus />}
             onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
           />
         </div>
@@ -597,7 +614,7 @@ export function PromptBar({ value, onChange, onSend, placeholder, micState, onMi
         }}
       />
       <span className="nat-field__trail">
-        <MicButton state={micState} size="sm" onClick={onMic} />
+        {onMic && <MicButton state={micState} size="sm" onClick={onMic} />}
         <IconButton
           variant="accent"
           round

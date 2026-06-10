@@ -1,6 +1,7 @@
 'use client';
 
-import { AgentStatus, AgentSteps, PosterSkeleton } from '@/components/natter/index.jsx';
+import { AgentStatus, AgentSteps, PosterSkeleton, Img, Button } from '@/components/natter/index.jsx';
+import { Icons } from '@/components/natter/Icons.jsx';
 
 const PLACEHOLDER_STEPS = [
   'Reading your request',
@@ -9,7 +10,7 @@ const PLACEHOLDER_STEPS = [
   'Putting picks in order',
 ];
 
-export function WorkingScreen({ query, steps }) {
+export function WorkingScreen({ query, steps, candidates = [], onCancel }) {
   // Use live steps if we have them, otherwise show placeholders
   const displaySteps = steps && steps.length > 0 ? steps : PLACEHOLDER_STEPS;
   // The last received step is "active"; if no live steps yet, show index 0
@@ -17,6 +18,10 @@ export function WorkingScreen({ query, steps }) {
 
   const state =
     activeIndex === 0 ? 'thinking' : activeIndex === displaySteps.length - 1 ? 'comparing' : 'searching';
+
+  // Fill the grid: real candidate posters first, skeletons for the rest
+  const slots = 6;
+  const shown = candidates.slice(-slots);
 
   return (
     <div className="working fade-in">
@@ -40,11 +45,41 @@ export function WorkingScreen({ query, steps }) {
         >
           &ldquo;{query}&rdquo;
         </div>
+        <div style={{ marginTop: 10, color: 'var(--text-lo)', fontSize: 'var(--text-xs)' }}>
+          Usually takes about 30 seconds.
+        </div>
+        {onCancel && (
+          <div style={{ marginTop: 18 }}>
+            <Button variant="secondary" size="md" iconLeft={<Icons.x />} onClick={onCancel}>
+              Cancel
+            </Button>
+          </div>
+        )}
       </div>
-      <div className="poster-grid">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <PosterSkeleton key={i} />
-        ))}
+      <div>
+        {shown.length > 0 && (
+          <div
+            className="section-label"
+            style={{ marginBottom: 12, color: 'var(--text-mid)', fontSize: 'var(--text-sm)' }}
+          >
+            Considering…
+          </div>
+        )}
+        <div className="poster-grid">
+          {shown.map((c) => (
+            <div key={c.id} className="nat-poster" style={{ pointerEvents: 'none' }}>
+              <div className="nat-poster__art">
+                <Img src={c.poster} alt={c.title} />
+              </div>
+              <div className="nat-poster__body">
+                <div className="nat-poster__title">{c.title}</div>
+              </div>
+            </div>
+          ))}
+          {Array.from({ length: Math.max(0, slots - shown.length) }).map((_, i) => (
+            <PosterSkeleton key={`s${i}`} />
+          ))}
+        </div>
       </div>
     </div>
   );
