@@ -26,6 +26,7 @@ test('buildUsageLine: full search line from Cloudflare headers', () => {
     route: 'recommend',
     query: 'cosy sci-fi like Arrival',
     kind: 'movie',
+    lang: 'ar',
     picksCount: 6,
     ok: true,
     ms: 1234,
@@ -38,6 +39,7 @@ test('buildUsageLine: full search line from Cloudflare headers', () => {
     route: 'recommend',
     query: 'cosy sci-fi like Arrival',
     kind: 'movie',
+    lang: 'ar',
     picksCount: 6,
     ok: true,
     ip: '203.0.113.7',
@@ -55,6 +57,7 @@ test('buildUsageLine: optional fields default to null, ok defaults true', () => 
   const line = buildUsageLine({ request: req(), route: 'transcribe' });
   assert.equal(line.query, null);
   assert.equal(line.kind, null);
+  assert.equal(line.lang, null);
   assert.equal(line.picksCount, null);
   assert.equal(line.ms, null);
   assert.equal(line.ip, null);

@@ -9,7 +9,7 @@
     {
       "type": "stat",
       "title": "Searches",
-      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
       "datasource": { "type": "loki", "uid": "Loki" },
       "targets": [
         { "expr": "sum(count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" [$__range]))", "queryType": "instant" }
@@ -17,8 +17,45 @@
     },
     {
       "type": "stat",
+      "title": "Last hour",
+      "description": "Searches in the last 60 minutes, regardless of the dashboard time range.",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "sum(count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" [1h]))", "queryType": "instant" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" }, "noValue": "0" } }
+    },
+    {
+      "type": "stat",
+      "title": "Median search time",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "avg(quantile_over_time(0.5, {container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" | unwrap ms [$__range]))", "queryType": "instant" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms", "decimals": 1 } }
+    },
+    {
+      "type": "stat",
+      "title": "Failed searches",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "sum(count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" | ok=\"false\" [$__range]))", "queryType": "instant" }
+      ],
+      "options": { "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "type": "stat",
       "title": "Unique visitors (IPs)",
-      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
       "datasource": { "type": "loki", "uid": "Loki" },
       "targets": [
         { "expr": "count(sum by (ip) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" [$__range])))", "queryType": "instant" }
@@ -27,44 +64,48 @@
     {
       "type": "stat",
       "title": "Countries",
-      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
       "datasource": { "type": "loki", "uid": "Loki" },
       "targets": [
         { "expr": "count(sum by (country) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" [$__range])))", "queryType": "instant" }
       ]
     },
     {
-      "type": "stat",
-      "title": "Failed searches",
-      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
-      "datasource": { "type": "loki", "uid": "Loki" },
-      "targets": [
-        { "expr": "sum(count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" | ok=\"false\" [$__range]))", "queryType": "instant" }
-      ],
-      "options": { "colorMode": "background", "graphMode": "none" },
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
-        }
-      }
-    },
-    {
       "type": "timeseries",
-      "title": "Searches over time",
+      "title": "Searches over time — by type asked for",
       "gridPos": { "x": 0, "y": 4, "w": 16, "h": 8 },
       "datasource": { "type": "loki", "uid": "Loki" },
       "targets": [
-        { "expr": "sum(count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" [$__auto]))", "queryType": "range", "legendFormat": "searches" }
-      ]
+        { "expr": "sum by (kind) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" [$__auto]))", "queryType": "range", "legendFormat": "{{kind}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": { "mode": "normal" },
+            "lineWidth": 0
+          }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
     },
     {
-      "type": "piechart",
-      "title": "Requests by endpoint",
+      "type": "timeseries",
+      "title": "Search response time",
       "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
       "datasource": { "type": "loki", "uid": "Loki" },
       "targets": [
-        { "expr": "sum by (route) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" [$__range]))", "queryType": "instant", "legendFormat": "{{route}}" }
-      ]
+        { "expr": "avg(quantile_over_time(0.5, {container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" | unwrap ms [$__auto]))", "queryType": "range", "legendFormat": "median" },
+        { "expr": "max(quantile_over_time(0.95, {container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" | unwrap ms [$__auto]))", "queryType": "range", "legendFormat": "p95" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "drawStyle": "line", "fillOpacity": 12, "spanNulls": true }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
     },
     {
       "type": "table",
@@ -76,31 +117,58 @@
       ]
     },
     {
-      "type": "table",
-      "title": "Requests by country",
+      "type": "geomap",
+      "title": "Where people search from",
       "gridPos": { "x": 12, "y": 12, "w": 12, "h": 9 },
       "datasource": { "type": "loki", "uid": "Loki" },
       "targets": [
-        { "expr": "sum by (country) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" [$__range]))", "queryType": "instant" }
+        { "expr": "sum by (country) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" [$__range]))", "queryType": "instant", "legendFormat": "{{country}}" }
+      ],
+      "options": {
+        "view": { "id": "zero", "lat": 24, "lon": 10, "zoom": 1.3 },
+        "basemap": { "type": "default", "name": "Basemap" },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Searches",
+            "location": { "mode": "lookup", "lookup": "country", "gazetteer": "public/gazetteer/countries.json" },
+            "config": {
+              "style": {
+                "size": { "field": "Value", "min": 5, "max": 22 },
+                "color": { "fixed": "purple" },
+                "opacity": 0.75
+              },
+              "showLegend": false
+            },
+            "tooltip": true
+          }
+        ],
+        "tooltip": { "mode": "details" },
+        "controls": { "showZoom": true, "mouseWheelZoom": false }
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Live search feed",
+      "gridPos": { "x": 0, "y": 21, "w": 16, "h": 9 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      },
+      "targets": [
+        { "expr": "{container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" | line_format `{{if eq .ok \"false\"}}✗ {{end}}{{.country}} · {{.kind}}{{if and .lang (ne .lang \"null\")}} · {{.lang}}{{end}} · “{{.query}}” → {{.picksCount}} picks · {{.ms}}ms`", "queryType": "range" }
       ]
     },
     {
       "type": "table",
       "title": "Top visitors (IP + country)",
-      "gridPos": { "x": 0, "y": 21, "w": 12, "h": 9 },
+      "gridPos": { "x": 16, "y": 21, "w": 8, "h": 9 },
       "datasource": { "type": "loki", "uid": "Loki" },
       "targets": [
         { "expr": "topk(25, sum by (ip, country) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" [$__range])))", "queryType": "instant" }
-      ]
-    },
-    {
-      "type": "logs",
-      "title": "Live search feed",
-      "gridPos": { "x": 12, "y": 21, "w": 12, "h": 9 },
-      "datasource": { "type": "loki", "uid": "Loki" },
-      "options": { "showTime": true, "wrapLogMessage": true },
-      "targets": [
-        { "expr": "{container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\"", "queryType": "range" }
       ]
     }
   ]

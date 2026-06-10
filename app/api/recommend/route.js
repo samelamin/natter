@@ -43,6 +43,7 @@ export async function POST(request) {
 
       let ok = true;
       let picksCount = 0;
+      let lang = null;
       try {
         const result = await recommend({
           query,
@@ -51,6 +52,7 @@ export async function POST(request) {
         });
 
         picksCount = result.picks?.length ?? 0;
+        lang = result.lang ?? null;
         emit({
           type: 'done',
           query,
@@ -72,7 +74,7 @@ export async function POST(request) {
         });
       } finally {
         // One usage line per search — in finally so we capture it even on failure.
-        logUsage({ request, route: 'recommend', query, kind, picksCount, ok, ms: Date.now() - startedAt });
+        logUsage({ request, route: 'recommend', query, kind, lang, picksCount, ok, ms: Date.now() - startedAt });
         try {
           controller.close();
         } catch {
