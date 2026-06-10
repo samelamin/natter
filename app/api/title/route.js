@@ -25,7 +25,7 @@ export async function POST(request) {
     return json({ error: 'invalid request body' }, 422);
   }
 
-  const { tmdbId, kind, season } = body || {};
+  const { tmdbId, kind, season, lang } = body || {};
 
   if (!tmdbId) return json({ error: 'tmdbId is required' }, 422);
   if (!kind || (kind !== 'movie' && kind !== 'tv')) {
@@ -38,6 +38,9 @@ export async function POST(request) {
       tmdbId,
       kind,
       season: season != null ? Number(season) : undefined,
+      // Localized metadata for non-English recommendations; getDetails
+      // validates the code and ignores anything malformed.
+      language: lang,
     });
     logUsage({ request, route: 'title', kind, ok: true, ms: Date.now() - startedAt });
     return json(item);

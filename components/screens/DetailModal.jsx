@@ -30,6 +30,8 @@ export function DetailModal({ item, picks = [], onClose, onOpen }) {
       const body = { tmdbId: item.tmdbId, kind };
       // Fetch first season episodes for TV
       if (kind === 'tv') body.season = 1;
+      // Keep the detail view in the language the recommendation was made in
+      if (item.lang) body.lang = item.lang;
       const res = await fetch('/api/title', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -44,7 +46,7 @@ export function DetailModal({ item, picks = [], onClose, onOpen }) {
     } finally {
       setLoading(false);
     }
-  }, [item.tmdbId, item.kind]);
+  }, [item.tmdbId, item.kind, item.lang]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -56,8 +58,8 @@ export function DetailModal({ item, picks = [], onClose, onOpen }) {
     ? {
         ...item,
         ...enriched,
-        // match comes from the recommendation engine, not /api/title — don't
-        // let the enrichment's undefined wipe it
+        // match comes from the recommendation engine, not /api/title — keep
+        // the pick's value even if the route ever starts returning the key
         match: enriched.match ?? item.match,
         // poster/backdrop: prefer enriched, fall back to pick's basic fields
         posterSrc: enriched.posterSrc || item.poster,

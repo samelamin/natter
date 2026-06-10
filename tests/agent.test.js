@@ -8,7 +8,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { extractConstraints, applyFilters, rankAndBadge, demoteGenresFor } from '../lib/agent.js';
+import {
+  extractConstraints,
+  applyFilters,
+  rankAndBadge,
+  demoteGenresFor,
+  languageFromQuery,
+  dedupeByTitle,
+} from '../lib/agent.js';
 
 // Genre names exactly as lib/tmdb.js emits them (movie 878 → "Sci-Fi",
 // tv 10765 → "Sci-Fi & Fantasy"; TMDB TV has no "Thriller" genre at all).
@@ -39,6 +46,60 @@ test('extractConstraints: spoken forms without hyphens ("sci fi", "rom com")', (
 test('extractConstraints: "rom com" does not false-positive inside "from comedy"', () => {
   const c = extractConstraints('films from comedy directors');
   assert.deepEqual(c.requireGenres, ['Comedy']);
+});
+
+// ── Query language detection (locale-accurate recommendations) ──────────────
+
+test('languageFromQuery: detects non-Latin scripts', () => {
+  assert.equal(languageFromQuery('فيلم كوميدي'), 'ar'); // Arabic
+  assert.equal(languageFromQuery('фильм ужасов'), 'ru'); // Cyrillic
+  assert.equal(languageFromQuery('面白い映画'), 'ja'); // kana present → Japanese
+  assert.equal(languageFromQuery('恐怖电影'), 'zh'); // Han only → Chinese
+  assert.equal(languageFromQuery('웃긴 영화'), 'ko'); // Hangul
+  assert.equal(languageFromQuery('סרט קומדיה'), 'he'); // Hebrew
+});
+
+test('languageFromQuery: English/Latin queries return null (no locale filter)', () => {
+  assert.equal(languageFromQuery('a feel-good comedy'), null);
+  assert.equal(languageFromQuery('une comédie romantique'), null); // Latin-script — LLM handles
+  assert.equal(languageFromQuery(''), null);
+});
+
+test('languageFromQuery: mixed-script query still detects the non-Latin language', () => {
+  // e.g. Arabic asking for something like an English-titled show
+  assert.equal(languageFromQuery('مسلسل مثل game of thrones'), 'ar');
+});
+
+test('extractConstraints: Arabic genre words map to TMDB genres', () => {
+  assert.deepEqual(extractConstraints('فيلم كوميدي').requireGenres, ['Comedy']);
+  assert.deepEqual(extractConstraints('مسلسل دراما').requireGenres, ['Drama']);
+  assert.deepEqual(extractConstraints('فيلم رعب').requireGenres, ['Horror']);
+  assert.deepEqual(extractConstraints('فيلم أكشن').requireGenres, ['Action']);
+  assert.deepEqual(extractConstraints('خيال علمي').requireGenres, ['Sci-Fi']);
+});
+
+test('demoteGenresFor: Arabic anime/cartoon words lift the Animation demote', () => {
+  assert.deepEqual(demoteGenresFor('انمي'), []);
+  assert.deepEqual(demoteGenresFor('رسوم متحركة للأطفال'), []);
+  assert.deepEqual(demoteGenresFor('فيلم كوميدي'), ['Animation']);
+});
+
+test('dedupeByTitle: non-Latin titles are kept, not dropped as empty keys', () => {
+  // normalizeTitle used to strip [^a-z0-9], so every pure-Arabic (or CJK,
+  // Cyrillic…) title normalized to '' and the whole pick was discarded —
+  // Arabic searches returned at most the odd title containing a digit.
+  const a = { id: 'tmdb:1', title: 'أبو شنب', kind: 'film', rating: 6.5, genres: ['Comedy'], poster: 'x' };
+  const b = { id: 'tmdb:2', title: 'عسل أسود', kind: 'film', rating: 7.1, genres: ['Comedy'], poster: 'x' };
+  const out = dedupeByTitle([a, b]);
+  assert.equal(out.length, 2, 'two distinct Arabic titles must both survive');
+});
+
+test('dedupeByTitle: identical non-Latin titles still dedupe', () => {
+  const a = { id: 'tmdb:1', title: 'أبو شنب', kind: 'film', rating: 6.5, genres: ['Comedy'], poster: null };
+  const b = { id: 'tmdb:9', title: 'أبو شنب', kind: 'film', rating: 6.5, genres: ['Comedy'], poster: 'x' };
+  const out = dedupeByTitle([a, b]);
+  assert.equal(out.length, 1, 'same Arabic title across ids must collapse');
+  assert.ok(out[0].poster, 'the entry with a poster wins');
 });
 
 test('applyFilters: sci-fi TV survives a "sci-fi thriller" query', () => {
