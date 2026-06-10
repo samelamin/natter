@@ -62,6 +62,9 @@ export default function Page() {
           } else if (event.type === 'done') {
             sawDone = true;
             setPicks(event.picks || []);
+            // Land on the tab the wording asked for ("a comedy movie" → Films);
+            // the other tab is stocked with the same genre, one tap away.
+            setKind(event.kind === 'film' || event.kind === 'tv' ? event.kind : 'all');
             setScreen('results');
             if (event.message && !event.picks?.length) {
               setError(event.message);
@@ -106,7 +109,7 @@ export default function Page() {
           const data = await res.json();
           if (isStale()) return;
           if (data.steps) setSteps(data.steps);
-          applyEvent({ type: 'done', picks: data.picks, message: data.message });
+          applyEvent({ type: 'done', picks: data.picks, message: data.message, kind: data.kind });
         }
 
         // A stream that ends without a 'done' event (proxy error page, dropped

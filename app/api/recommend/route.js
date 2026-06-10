@@ -55,6 +55,9 @@ export async function POST(request) {
           type: 'done',
           query,
           intent: result.intent,
+          // What the wording asked for ('film'|'tv'|'all') — the client lands
+          // the toggle here; the pool itself carries both types.
+          kind: result.kind,
           picks: result.picks,
         });
       } catch (err) {
