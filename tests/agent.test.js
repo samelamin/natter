@@ -26,6 +26,21 @@ test('extractConstraints: "sci-fi thriller" → Sci-Fi primary, Thriller seconda
   assert.deepEqual(c.requireGenres, ['Sci-Fi', 'Thriller']);
 });
 
+test('extractConstraints: spoken forms without hyphens ("sci fi", "rom com")', () => {
+  // Voice transcripts rarely hyphenate — "a sci fi thriller" must parse the
+  // same as "a sci-fi thriller", or the primary genre becomes Thriller and
+  // every TV pick is filtered out (TMDB TV has no Thriller genre).
+  const c = extractConstraints('a sci fi thriller');
+  assert.deepEqual(c.requireGenres, ['Sci-Fi', 'Thriller']);
+  const r = extractConstraints('a rom com with a feel good story');
+  assert.deepEqual(r.requireGenres, ['Romance']);
+});
+
+test('extractConstraints: "rom com" does not false-positive inside "from comedy"', () => {
+  const c = extractConstraints('films from comedy directors');
+  assert.deepEqual(c.requireGenres, ['Comedy']);
+});
+
 test('applyFilters: sci-fi TV survives a "sci-fi thriller" query', () => {
   const c = extractConstraints('sci-fi thriller');
   const out = applyFilters([sciFiShow, comedyShow], 'all', c);

@@ -811,6 +811,28 @@ test('tmdbDiscover: passes without_genres to exclude genres (e.g. Animation)', a
   }
 });
 
+test('tmdbDiscover: genre name lookup is case-insensitive', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  let capturedUrl;
+  global.fetch = async (url) => {
+    capturedUrl = url;
+    return { ok: true, status: 200, json: async () => DISCOVER_RESPONSE };
+  };
+  try {
+    // The agent's LLM sometimes lowercases genre names — "sci-fi" must still
+    // resolve to the TV genre id rather than silently discovering unfiltered.
+    await tmdbDiscover({ kind: 'tv', genre: 'sci-fi' });
+    assert.ok(
+      capturedUrl.includes('with_genres=10765'),
+      `lowercase "sci-fi" should resolve to TV genre 10765, got: ${capturedUrl}`,
+    );
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
 test('tmdbDiscover: returns [] on fetch error', async () => {
   _testCacheClear();
   const originalFetch = global.fetch;
