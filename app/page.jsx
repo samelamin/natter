@@ -7,6 +7,8 @@ import { ListeningOverlay } from '@/components/screens/ListeningOverlay.jsx';
 import { WorkingScreen } from '@/components/screens/WorkingScreen.jsx';
 import { ResultsScreen } from '@/components/screens/ResultsScreen.jsx';
 import { WatchlistScreen } from '@/components/screens/WatchlistScreen.jsx';
+import { RecentPicks } from '@/components/screens/RecentPicks.jsx';
+import { TmdbAttribution } from '@/components/natter/TmdbAttribution.jsx';
 import { DetailModal } from '@/components/screens/DetailModal.jsx';
 import { AuthModal } from '@/components/screens/AuthModal.jsx';
 import { ServicesModal } from '@/components/screens/ServicesModal.jsx';
@@ -50,6 +52,10 @@ export default function Page() {
   const screenRef = useRef(screen);
   useEffect(() => { detailRef.current = detail; }, [detail]);
   useEffect(() => { screenRef.current = screen; }, [screen]);
+  // runSearch closes over state at call time — the history write needs the
+  // CURRENT user, not the one captured when the search started.
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
 
   // Guard for the ?q= deep link — only run once on mount
   const deepLinkFiredRef = useRef(false);
@@ -283,6 +289,24 @@ export default function Page() {
               } catch {
                 // ignore
               }
+              // Signed-in: also save the pick set server-side (fire-and-forget;
+              // never blocks the stream or the paint).
+              if (userRef.current) {
+                import('@/lib/history.js')
+                  .then(({ sanitizeHistoryPicks }) =>
+                    fetch('/api/history', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        query: q,
+                        intent: event.intent || null,
+                        kind: event.kind || null,
+                        picks: sanitizeHistoryPicks(event.picks),
+                      }),
+                    }),
+                  )
+                  .catch(() => {});
+              }
             }
           }
         };
@@ -449,6 +473,24 @@ export default function Page() {
     setScreen('watchlist');
   }, [refreshWatchlist]);
 
+  // Reopen a saved history entry: instant, deterministic — no /api/recommend.
+  // Mirrors runSearch's history.pushState + in-flight invalidation so Back and
+  // stray streams behave identically to a real search.
+  const openHistorySet = useCallback((entry) => {
+    if (!entry) return;
+    searchSeqRef.current++;
+    abortRef.current?.abort();
+    history.pushState({ n: 'app' }, '', '');
+    setActiveQuery(entry.query || '');
+    setIntent(entry.intent || '');
+    setKind(entry.kind === 'film' || entry.kind === 'tv' ? entry.kind : 'all');
+    setPicks(Array.isArray(entry.picks) ? entry.picks : []);
+    setError(null);
+    setResultProviders([]);
+    setFinishing(false);
+    setScreen('results');
+  }, []);
+
   // Compute micState for idle PromptBar
   const promptMicState = micState === 'processing' ? 'processing' : screen === 'listening' ? 'listening' : 'idle';
 
@@ -457,6 +499,47 @@ export default function Page() {
     () => picks.map((p) => (watchKeys.has(`${p.kind}:${p.tmdbId}`) ? { ...p, inWatchlist: true } : p)),
     [picks, watchKeys],
   );
+
+  // Share the CURRENTLY VISIBLE picks as a snapshot link (/s/<id>). Mirrors
+  // ShareButton's native-sheet-then-clipboard behavior.
+  const shareSet = useCallback(async () => {
+    const visible =
+      kind === 'film' || kind === 'tv' ? displayPicks.filter((p) => p.kind === kind) : displayPicks;
+    const p = visible.slice(0, 8);
+    if (p.length === 0) return;
+    let url;
+    try {
+      const r = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: activeQuery, intent, kind, picks: p }),
+      });
+      if (r.status === 503) {
+        showToast('Sharing is unavailable right now — try a single title instead');
+        return;
+      }
+      if (!r.ok) throw new Error(`share failed: ${r.status}`);
+      const { id } = await r.json();
+      url = new URL(`/s/${id}`, window.location.origin).href;
+    } catch {
+      showToast('Could not create a link — please try again');
+      return;
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${p.length} picks for "${activeQuery}"`, url });
+        return;
+      }
+    } catch {
+      // user dismissed the native sheet — fall through to copy
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Link copied — share your picks');
+    } catch {
+      // clipboard blocked — nothing more we can do
+    }
+  }, [displayPicks, kind, activeQuery, intent, showToast]);
 
   const watchlistAsPicks = useMemo(
     () =>
@@ -500,13 +583,16 @@ export default function Page() {
           </div>
         )}
         {screen === 'idle' && (
-          <IdleScreen
-            query={query}
-            setQuery={setQuery}
-            onSend={runSearch}
-            micState={promptMicState}
-            onMic={handleMicClick}
-          />
+          <>
+            <IdleScreen
+              query={query}
+              setQuery={setQuery}
+              onSend={runSearch}
+              micState={promptMicState}
+              onMic={handleMicClick}
+            />
+            <RecentPicks user={user} onOpenSet={openHistorySet} />
+          </>
         )}
         {screen === 'working' && (
           <WorkingScreen query={activeQuery} steps={steps} candidates={candidates} onCancel={goHome} />
@@ -524,6 +610,7 @@ export default function Page() {
             onSearch={runSearch}
             onRefine={runRefine}
             onRetry={() => runSearch(activeQuery)}
+            onShareSet={shareSet}
             finishing={finishing}
             intent={intent}
           />
@@ -535,6 +622,11 @@ export default function Page() {
             onRemove={toggleWatchlist}
             onBrowse={goHome}
           />
+        )}
+        {(screen === 'idle' || screen === 'results' || screen === 'watchlist') && (
+          <div style={{ margin: '48px 0 10px' }}>
+            <TmdbAttribution />
+          </div>
         )}
       </main>
       {screen === 'listening' && (

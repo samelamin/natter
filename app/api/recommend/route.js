@@ -1,4 +1,5 @@
 import { logUsage } from '@/lib/usage.js';
+import { cacheGetJSON, cacheSetJSON } from '@/lib/cache.js';
 
 // ── Whole-result cache ───────────────────────────────────────────────────────
 // A search costs an LLM loop + web search + dozens of TMDB calls and takes
@@ -149,6 +150,19 @@ export async function POST(request) {
           return;
         }
 
+        // L2: check Redis when there's no L1 hit.
+        if (!bypassCache) {
+          const l2 = await cacheGetJSON('natter:rec:v1:' + cacheKey);
+          if (l2) {
+            cached = true;
+            picksCount = l2.picks?.length ?? 0;
+            lang = l2.lang ?? null;
+            cacheSet(cacheKey, l2);
+            emit(l2);
+            return;
+          }
+        }
+
         const result = await recommend({
           query,
           kind,
@@ -176,7 +190,10 @@ export async function POST(request) {
           picks: result.picks,
         };
         emit(done);
-        if (!bypassCache && picksCount > 0) cacheSet(cacheKey, done);
+        if (!bypassCache && picksCount > 0) {
+          cacheSet(cacheKey, done);
+          cacheSetJSON('natter:rec:v1:' + cacheKey, done, 21600);
+        }
       } catch (err) {
         ok = false;
         console.error('[/api/recommend]', err);

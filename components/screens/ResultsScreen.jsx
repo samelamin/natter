@@ -16,6 +16,7 @@ export function ResultsScreen({
   onSearch,
   onRefine,
   onRetry,
+  onShareSet,
   finishing,
   intent,
 }) {
@@ -52,6 +53,11 @@ export function ResultsScreen({
           <span dir="auto" className="q">&ldquo;{query}&rdquo;</span>
         </h1>
         <div className="refine">
+          {onShareSet && shown.length > 0 && (
+            <Button variant="secondary" size="md" iconLeft={<Icons.share />} onClick={onShareSet}>
+              Share these picks
+            </Button>
+          )}
           <Button variant="secondary" size="md" iconLeft={<Icons.refresh />} onClick={onNew}>
             New search
           </Button>

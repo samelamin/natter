@@ -1,8 +1,11 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getDetails } from '@/lib/tmdb.js';
+import { resizeImagePath } from '@/lib/share.js';
 import { Backdrop, MetaRow, RatingStars, CastRow, WatchOn, Button } from '@/components/natter/index.jsx';
 import { ShareButton } from '@/components/natter/ShareButton.jsx';
+import { TitlePageActions } from '@/components/screens/TitlePageActions.jsx';
+import { TmdbAttribution } from '@/components/natter/TmdbAttribution.jsx';
 
 // Server component: thin wrapper over getDetails(). The presentational pieces are
 // client components but Next still SSRs them to HTML, so crawlers/cold visitors
@@ -24,14 +27,33 @@ export async function generateMetadata({ params }) {
   const heading = `${item.title}${item.year ? ` (${item.year})` : ''} — Natter`;
   const description = item.blurb || `Where to watch ${item.title} and more, on Natter.`;
   const url = `/title/${kind}/${id}`;
+  // og:image is the proxied TMDB JPEG, NOT a composed next/og PNG: a 1200×630
+  // photographic PNG is ~1.4MB, which WhatsApp silently refuses (~600KB cap),
+  // so previews never rendered. The w780 JPEG is ~100KB, Cloudflare-cached,
+  // and unfurls instantly everywhere. metadataBase makes the URL absolute.
+  const ogImage =
+    resizeImagePath(item.backdropSrc, 'w780') || resizeImagePath(item.posterSrc, 'w500');
   // openGraph/twitter are replaced wholesale on merge, so re-declare type/siteName/
   // locale, and set twitter.{title,description} or X shows the generic site title.
   return {
     title: heading,
     description,
     alternates: { canonical: url },
-    openGraph: { type: 'website', siteName: 'Natter', locale: 'en_GB', url, title: heading, description },
-    twitter: { card: 'summary_large_image', title: heading, description },
+    openGraph: {
+      type: 'website',
+      siteName: 'Natter',
+      locale: 'en_GB',
+      url,
+      title: heading,
+      description,
+      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: heading,
+      description,
+      ...(ogImage ? { images: [ogImage] } : {}),
+    },
   };
 }
 
@@ -48,6 +70,16 @@ export default async function TitlePage({ params }) {
 
   return (
     <main className="title-page">
+      <TitlePageActions
+        item={{
+          tmdbId: Number(id),
+          kind,
+          title: item.title,
+          poster: item.posterSrc,
+          year: item.year,
+          rating: item.rating,
+        }}
+      />
       <Backdrop item={item} className="title-hero">
         <div className="title-hero__inner">
           <h1 className="title-hero__name" dir="auto">{item.title}</h1>
@@ -69,9 +101,11 @@ export default async function TitlePage({ params }) {
           <Button as="a" href={'/?q=' + encodeURIComponent('Something like ' + item.title)} variant="brand" size="lg">
             Find things like this
           </Button>
-          <ShareButton item={item} variant="solid" size="lg" />
+          <ShareButton item={item} variant="solid" size="lg" targets />
           <Link href="/" className="title-cta__secondary">Open Natter</Link>
         </div>
+
+        <TmdbAttribution />
       </section>
     </main>
   );

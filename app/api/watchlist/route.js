@@ -7,7 +7,7 @@
  */
 
 import { db } from '@/lib/db.js';
-import { getSessionUser } from '@/lib/auth.js';
+import { getSessionUser, rateLimited } from '@/lib/auth.js';
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -54,6 +54,7 @@ async function parseItem(request) {
 export async function POST(request) {
   const user = await getSessionUser(request);
   if (!user) return json({ error: 'sign in required' }, 401);
+  if (rateLimited('wl:' + user.id, { max: 60, windowMs: 60_000 })) return json({ error: 'Slow down a moment.' }, 429);
   try {
     const item = await parseItem(request);
     if (!item) return json({ error: 'tmdbId and kind are required' }, 400);
@@ -80,6 +81,7 @@ export async function POST(request) {
 export async function DELETE(request) {
   const user = await getSessionUser(request);
   if (!user) return json({ error: 'sign in required' }, 401);
+  if (rateLimited('wl:' + user.id, { max: 60, windowMs: 60_000 })) return json({ error: 'Slow down a moment.' }, 429);
   try {
     const item = await parseItem(request);
     if (!item) return json({ error: 'tmdbId and kind are required' }, 400);
