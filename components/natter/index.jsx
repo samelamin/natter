@@ -236,7 +236,7 @@ export function MatchScore({ value }) {
 // ── Cinematic backdrop ────────────────────────────────────────────────────
 export function Backdrop({ item, className = '', children, style }) {
   const h = hueFrom(item.title);
-  const imgSrc = item.backdropSrc || item.background;
+  const imgSrc = item.backdropSrc || item.background || item.posterSrc || item.poster;
   return (
     <div className={`bd ${className}`} style={{ '--h': h, '--h2': (h + 38) % 360, ...style }}>
       {imgSrc

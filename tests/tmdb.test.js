@@ -23,13 +23,15 @@ import {
 } from '../lib/tmdb.js';
 
 // ── img ─────────────────────────────────────────────────────────────────────
+// URLs are routed through our own-origin proxy (app/img/[...path]/route.js)
+// rather than hotlinked from image.tmdb.org.
 
 test('img: builds correct URL', () => {
-  assert.equal(img('/abc.jpg', 'w500'), 'https://image.tmdb.org/t/p/w500/abc.jpg');
+  assert.equal(img('/abc.jpg', 'w500'), '/img/w500/abc.jpg');
 });
 
 test('img: default size is w500', () => {
-  assert.equal(img('/foo.jpg'), 'https://image.tmdb.org/t/p/w500/foo.jpg');
+  assert.equal(img('/foo.jpg'), '/img/w500/foo.jpg');
 });
 
 test('img: returns null for null path', () => {
@@ -234,7 +236,7 @@ test('fromMovie: cast has name, character, profileSrc', () => {
   assert.equal(item.cast.length, 3);
   assert.equal(item.cast[0].name, 'Keanu Reeves');
   assert.equal(item.cast[0].character, 'Neo');
-  assert.equal(item.cast[0].profileSrc, 'https://image.tmdb.org/t/p/w185/keanu.jpg');
+  assert.equal(item.cast[0].profileSrc, '/img/w185/keanu.jpg');
 });
 
 test('fromMovie: trailerKey extracted', () => {
@@ -827,6 +829,136 @@ test('tmdbDiscover: genre name lookup is case-insensitive', async () => {
       capturedUrl.includes('with_genres=10765'),
       `lowercase "sci-fi" should resolve to TV genre 10765, got: ${capturedUrl}`,
     );
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
+test('tmdbDiscover: passes with_original_language + language for locale queries', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  let capturedUrl;
+  global.fetch = async (url) => {
+    capturedUrl = url;
+    return { ok: true, status: 200, json: async () => DISCOVER_RESPONSE };
+  };
+  try {
+    // An Arabic query must surface originally-Arabic content with Arabic metadata.
+    await tmdbDiscover({ kind: 'film', genre: 'Comedy', originalLanguage: 'ar', language: 'ar' });
+    assert.ok(capturedUrl.includes('with_original_language=ar'), `expected original-language filter, got: ${capturedUrl}`);
+    assert.ok(capturedUrl.includes('language=ar'), `expected localized metadata param, got: ${capturedUrl}`);
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
+test('tmdbDiscover: non-English original language lowers the vote-count floor', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  let capturedUrl;
+  global.fetch = async (url) => {
+    capturedUrl = url;
+    return { ok: true, status: 200, json: async () => DISCOVER_RESPONSE };
+  };
+  try {
+    // Regional cinema rarely reaches 80 TMDB votes — a floor of 80 would
+    // return a near-empty pool for e.g. Arabic queries.
+    await tmdbDiscover({ kind: 'film', originalLanguage: 'ar' });
+    assert.ok(capturedUrl.includes('vote_count.gte=10'), `expected lowered floor, got: ${capturedUrl}`);
+    await tmdbDiscover({ kind: 'film' });
+    assert.ok(capturedUrl.includes('vote_count.gte=80'), `default floor must stay 80, got: ${capturedUrl}`);
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
+test('tmdbDiscover: rejects malformed language codes (no URL injection)', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  let capturedUrl;
+  global.fetch = async (url) => {
+    capturedUrl = url;
+    return { ok: true, status: 200, json: async () => DISCOVER_RESPONSE };
+  };
+  try {
+    await tmdbDiscover({ kind: 'film', originalLanguage: 'ar&api_key=evil', language: 'x'.repeat(40) });
+    assert.ok(!capturedUrl.includes('evil'), `malformed code must be dropped, got: ${capturedUrl}`);
+    assert.ok(!capturedUrl.includes('language=xxxx'), `overlong code must be dropped, got: ${capturedUrl}`);
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
+test('tmdbSearch: passes language for localized titles/overviews', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  let capturedUrl;
+  global.fetch = async (url) => {
+    capturedUrl = url;
+    return { ok: true, status: 200, json: async () => ({ results: [] }) };
+  };
+  try {
+    await tmdbSearch({ title: 'الرسالة', kind: 'film', language: 'ar' });
+    assert.ok(capturedUrl.includes('language=ar'), `expected language param, got: ${capturedUrl}`);
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
+test('tmdbDiscover: pick carries a landscape backdropSrc for the hero (film)', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      results: [{ id: 7, title: 'X', poster_path: '/p.jpg', backdrop_path: '/b.jpg', genre_ids: [], vote_count: 500 }],
+    }),
+  });
+  try {
+    const picks = await tmdbDiscover({ kind: 'film' });
+    assert.equal(picks[0].backdropSrc, img('/b.jpg', 'w1280'));
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
+test('tmdbDiscover: pick carries a landscape backdropSrc for the hero (tv)', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      results: [{ id: 8, name: 'Y', poster_path: '/p.jpg', backdrop_path: '/b.jpg', genre_ids: [], vote_count: 500 }],
+    }),
+  });
+  try {
+    const picks = await tmdbDiscover({ kind: 'tv' });
+    assert.equal(picks[0].backdropSrc, img('/b.jpg', 'w1280'));
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
+test('tmdbDiscover: backdropSrc is null when the result has no backdrop_path', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ results: [{ id: 9, title: 'Z', poster_path: '/p.jpg', genre_ids: [], vote_count: 500 }] }),
+  });
+  try {
+    const picks = await tmdbDiscover({ kind: 'film' });
+    assert.equal(picks[0].backdropSrc, null);
   } finally {
     global.fetch = originalFetch;
     _testCacheClear();
