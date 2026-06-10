@@ -46,7 +46,7 @@ export function WorkingScreen({ query, steps, candidates = [], onCancel }) {
           &ldquo;{query}&rdquo;
         </div>
         <div style={{ marginTop: 10, color: 'var(--text-lo)', fontSize: 'var(--text-xs)' }}>
-          Usually takes about 30 seconds.
+          Quick asks land in ~15 seconds — tricky ones can take up to a minute.
         </div>
         {onCancel && (
           <div style={{ marginTop: 18 }}>

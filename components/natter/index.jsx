@@ -73,11 +73,20 @@ export function Badge({ children, variant = 'neutral', dot }) {
 }
 
 export function Tag({ children, selected, onClick, onRemove }) {
+  const interactive = !!onClick;
+  const role = interactive ? (selected !== undefined ? 'checkbox' : 'button') : undefined;
   return (
     <span
-      className={`nat-tag ${onClick ? 'nat-tag--int' : ''} ${selected ? 'nat-tag--sel' : ''}`}
+      className={`nat-tag ${interactive ? 'nat-tag--int' : ''} ${selected ? 'nat-tag--sel' : ''}`}
       onClick={onClick}
+      role={role}
+      tabIndex={interactive ? 0 : undefined}
+      aria-checked={role === 'checkbox' ? !!selected : undefined}
+      onKeyDown={interactive ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
+      } : undefined}
     >
+      {selected && <Icons.check />}
       {children}
       {onRemove && (
         <span
@@ -260,8 +269,8 @@ export function TrailerStage({ item }) {
         <div className="trailer__cover">
           <div className="trailer__meta">
             {item.badge && <Badge variant={item.badge.variant}>{item.badge.label}</Badge>}
-            <h1 className="trailer__name">{item.title}</h1>
-            {item.tagline && <p className="trailer__tag">{item.tagline}</p>}
+            <h1 className="trailer__name" dir="auto">{item.title}</h1>
+            {item.tagline && <p className="trailer__tag" dir="auto">{item.tagline}</p>}
           </div>
           <button className="trailer__play" onClick={() => setPlaying(true)}>
             <span className="trailer__playico"><Icons.play /></span>
@@ -383,7 +392,7 @@ export function Billboard({ item, onPlay, onDetails, onAdd }) {
           {item.badge && <Badge variant={item.badge.variant}>{item.badge.label}</Badge>}
           <MatchScore value={item.match} />
         </div>
-        <h1 className="billboard__title">{item.title}</h1>
+        <h1 className="billboard__title" dir="auto">{item.title}</h1>
         <div className="billboard__meta">
           <MetaRow items={[
             <span key="y">{item.year}</span>,
@@ -392,18 +401,19 @@ export function Billboard({ item, onPlay, onDetails, onAdd }) {
             item.rating ? <RatingStars key="s" value={item.rating} size="sm" /> : null,
           ].filter(Boolean)} />
         </div>
-        <p className="billboard__blurb">{item.synopsis || item.blurb}</p>
+        <p className="billboard__blurb" dir="auto">{item.synopsis || item.blurb}</p>
         {item.reason && (
           <p
             className="billboard__blurb"
+            dir="auto"
             style={{ color: 'var(--accent)', fontStyle: 'italic', marginTop: 6 }}
           >
             <Icons.sparkles /> {item.reason}
           </p>
         )}
         <div className="billboard__btns">
-          <Button variant="brand" size="lg" iconLeft={<Icons.play />} onClick={onPlay}>
-            Play{item.on ? ` on ${item.on}` : ''}
+          <Button variant="brand" size="lg" iconLeft={item.on ? <Icons.play /> : <Icons.info />} onClick={onPlay}>
+            {item.on ? `Watch on ${item.on}` : 'Take a look'}
           </Button>
           <Button variant="secondary" size="lg" iconLeft={<Icons.info />} onClick={onDetails}>More info</Button>
           <IconButton
@@ -467,11 +477,11 @@ export function PosterCard({ item, onPlay, onAdd, onClick }) {
         </div>
       </div>
       <div className="nat-poster__body">
-        <div className="nat-poster__title">{item.title}</div>
+        <div className="nat-poster__title" dir="auto">{item.title}</div>
         <MetaRow items={meta} />
         {item.rating && <RatingStars value={item.rating} />}
         {(item.reason || item.blurb) && (
-          <div className="nat-poster__blurb">{item.reason || item.blurb}</div>
+          <div className="nat-poster__blurb" dir="auto">{item.reason || item.blurb}</div>
         )}
         <div className="nat-poster__foot">
           {item.watch && item.watch.stream && item.watch.stream.length

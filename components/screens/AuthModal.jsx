@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button, Logo } from '@/components/natter/index.jsx';
 import { Icons } from '@/components/natter/Icons.jsx';
 
@@ -33,6 +33,20 @@ export function AuthModal({ mode: initialMode = 'signin', note, onClose, onAuthe
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
+  // ESC key closes
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // Body scroll lock
+  useEffect(() => {
+    const saved = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = saved; };
+  }, []);
+
   async function submit(e) {
     e.preventDefault();
     if (busy) return;
@@ -59,7 +73,7 @@ export function AuthModal({ mode: initialMode = 'signin', note, onClose, onAuthe
 
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <form style={card} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+      <form style={card} role="dialog" aria-modal="true" aria-label="Sign in or create an account" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Logo size={22} />
           <button

@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import { getDetails } from '@/lib/tmdb.js';
 import { Backdrop, MetaRow, RatingStars, CastRow, WatchOn, Button } from '@/components/natter/index.jsx';
 import { ShareButton } from '@/components/natter/ShareButton.jsx';
@@ -49,7 +50,7 @@ export default async function TitlePage({ params }) {
     <main className="title-page">
       <Backdrop item={item} className="title-hero">
         <div className="title-hero__inner">
-          <h1 className="title-hero__name">{item.title}</h1>
+          <h1 className="title-hero__name" dir="auto">{item.title}</h1>
           <div className="title-hero__meta">
             <MetaRow items={meta} />
             {item.rating ? <RatingStars value={item.rating} /> : null}
@@ -59,16 +60,17 @@ export default async function TitlePage({ params }) {
 
       <section className="title-body">
         {(item.synopsis || item.blurb) && (
-          <p className="title-body__blurb">{item.synopsis || item.blurb}</p>
+          <p className="title-body__blurb" dir="auto">{item.synopsis || item.blurb}</p>
         )}
         {item.watch ? <WatchOn watch={item.watch} /> : null}
         {item.cast && item.cast.length ? <CastRow cast={item.cast} /> : null}
 
         <div className="title-cta">
-          <Button as="a" href="/" variant="brand" size="lg">
-            Get recommendations on Natter
+          <Button as="a" href={'/?q=' + encodeURIComponent('Something like ' + item.title)} variant="brand" size="lg">
+            Find things like this
           </Button>
           <ShareButton item={item} variant="solid" size="lg" />
+          <Link href="/" className="title-cta__secondary">Open Natter</Link>
         </div>
       </section>
     </main>

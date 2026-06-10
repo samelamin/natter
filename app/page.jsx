@@ -22,12 +22,18 @@ export default function Page() {
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
   const [resultProviders, setResultProviders] = useState([]);
+  const [finishing, setFinishing] = useState(false);
+  const [intent, setIntent] = useState('');
 
   // Account state
   const [user, setUser] = useState(null);
   const [authOpen, setAuthOpen] = useState(null); // null | 'signin' | 'signup'
   const [servicesOpen, setServicesOpen] = useState(false);
   const [watchItems, setWatchItems] = useState([]);
+
+  // Toast state
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
 
   // Overlapping-search guards: only the latest request may touch state, and a
   // new search aborts the previous stream so it can't clobber fresh results.
@@ -38,6 +44,15 @@ export default function Page() {
   const pendingSaveRef = useRef(null);
   // Candidate posters streamed while the agent works (id → light item).
   const [candidates, setCandidates] = useState([]);
+
+  // Refs to avoid stale closures in the popstate listener
+  const detailRef = useRef(detail);
+  const screenRef = useRef(screen);
+  useEffect(() => { detailRef.current = detail; }, [detail]);
+  useEffect(() => { screenRef.current = screen; }, [screen]);
+
+  // Guard for the ?q= deep link — only run once on mount
+  const deepLinkFiredRef = useRef(false);
 
   // Who's signed in? (cookie session — one cheap call on mount)
   useEffect(() => {
@@ -84,6 +99,13 @@ export default function Page() {
     [watchItems],
   );
 
+  // Toast helper — clears previous timer and auto-clears after 2.5s
+  const showToast = useCallback((msg) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(msg);
+    toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+  }, []);
+
   const persistSave = useCallback(
     async (item) => {
       const key = `${item.kind}:${item.tmdbId}`;
@@ -98,6 +120,7 @@ export default function Page() {
         },
         ...prev.filter((i) => `${i.kind}:${i.tmdbId}` !== key),
       ]);
+      showToast('Added to your watchlist');
       try {
         const res = await fetch('/api/watchlist', {
           method: 'POST',
@@ -116,7 +139,7 @@ export default function Page() {
         refreshWatchlist();
       }
     },
-    [refreshWatchlist],
+    [refreshWatchlist, showToast],
   );
 
   const toggleWatchlist = useCallback(
@@ -134,6 +157,7 @@ export default function Page() {
       }
       // Remove (optimistic; reconcile on failure)
       setWatchItems((prev) => prev.filter((i) => `${i.kind}:${i.tmdbId}` !== key));
+      showToast('Removed from your watchlist');
       try {
         const res = await fetch('/api/watchlist', {
           method: 'DELETE',
@@ -145,7 +169,7 @@ export default function Page() {
         refreshWatchlist();
       }
     },
-    [user, watchKeys, persistSave, refreshWatchlist],
+    [user, watchKeys, persistSave, refreshWatchlist, showToast],
   );
 
   const signOut = useCallback(async () => {
@@ -159,8 +183,23 @@ export default function Page() {
     setScreen((s) => (s === 'watchlist' ? 'idle' : s));
   }, []);
 
+  // Shared reset logic used by goHome and the popstate handler
+  const resetToHome = useCallback(() => {
+    searchSeqRef.current++; // invalidate any in-flight search
+    abortRef.current?.abort();
+    setScreen('idle');
+    setQuery('');
+    setKind('all');
+    setDetail(null);
+    setError(null);
+    setPicks([]);
+    setResultProviders([]);
+    setFinishing(false);
+    setIntent('');
+  }, []);
+
   const runSearch = useCallback(
-    async (text, kindArg) => {
+    async (text, kindArg, opts) => {
       const q = (typeof text === 'string' ? text : query).trim();
       if (!q) return;
       // A fresh search always fetches the full pool — the TopBar toggle is a
@@ -182,12 +221,20 @@ export default function Page() {
       setSteps([]);
       setCandidates([]);
       setResultProviders([]);
+      setFinishing(false);
+      setIntent('');
+
+      // Push a history entry so back works
+      history.pushState({ n: 'app' }, '', '');
 
       try {
+        const body = { query: q, kind: effectiveKind };
+        if (opts?.prior) body.prior = opts.prior;
+
         const res = await fetch('/api/recommend', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: q, kind: effectiveKind }),
+          body: JSON.stringify(body),
           signal: controller.signal,
         });
         if (!res.ok) throw new Error(`Recommend failed: HTTP ${res.status}`);
@@ -203,6 +250,13 @@ export default function Page() {
               const fresh = (event.items || []).filter((c) => c.poster && !seen.has(c.id));
               return fresh.length ? [...prev, ...fresh].slice(0, 24) : prev;
             });
+          } else if (event.type === 'partial') {
+            setPicks(event.picks || []);
+            // Land on the tab the wording asked for — same logic as 'done'
+            setKind(event.kind === 'film' || event.kind === 'tv' ? event.kind : 'all');
+            setScreen('results');
+            setFinishing(true);
+            if (event.intent) setIntent(event.intent);
           } else if (event.type === 'done') {
             sawDone = true;
             setPicks(event.picks || []);
@@ -211,8 +265,24 @@ export default function Page() {
             setKind(event.kind === 'film' || event.kind === 'tv' ? event.kind : 'all');
             setResultProviders(Array.isArray(event.providers) ? event.providers : []);
             setScreen('results');
+            setFinishing(false);
+            if (event.intent) setIntent(event.intent);
             if (event.message && !event.picks?.length) {
               setError(event.message);
+            }
+            // Persist recent search
+            if ((event.picks || []).length > 0) {
+              try {
+                const raw = localStorage.getItem('natter.recent');
+                const prev = raw ? JSON.parse(raw) : [];
+                const filtered = Array.isArray(prev)
+                  ? prev.filter((r) => r.toLowerCase() !== q.toLowerCase())
+                  : [];
+                const updated = [q, ...filtered].slice(0, 8);
+                localStorage.setItem('natter.recent', JSON.stringify(updated));
+              } catch {
+                // ignore
+              }
             }
           }
         };
@@ -260,6 +330,7 @@ export default function Page() {
             message: data.message,
             kind: data.kind,
             providers: data.providers,
+            intent: data.intent,
           });
         }
 
@@ -276,6 +347,72 @@ export default function Page() {
     },
     [query],
   );
+
+  // Refine: sends current results as prior context
+  const picksRef = useRef(picks);
+  const activeQueryRef = useRef(activeQuery);
+  useEffect(() => { picksRef.current = picks; }, [picks]);
+  useEffect(() => { activeQueryRef.current = activeQuery; }, [activeQuery]);
+
+  const runRefine = useCallback(
+    (text) => {
+      const currentPicks = picksRef.current;
+      const currentQuery = activeQueryRef.current;
+      runSearch(text, undefined, {
+        prior: {
+          query: currentQuery,
+          picks: currentPicks.slice(0, 10).map((p) => ({
+            id: p.id,
+            title: p.title,
+            year: p.year,
+            kind: p.kind,
+          })),
+        },
+      });
+    },
+    [runSearch],
+  );
+
+  // openDetail helper — centralises setDetail + history push. Only the FIRST
+  // open pushes an entry; switching titles inside the modal replaces content,
+  // so one Back (or one close) always consumes exactly one entry.
+  const openDetail = useCallback((item) => {
+    if (!detailRef.current) history.pushState({ n: 'detail' }, '', '');
+    setDetail(item);
+  }, []);
+
+  // Manual close (X / Escape / backdrop) goes through history so the pushed
+  // entry is consumed — otherwise the next Back would skip past results.
+  const closeDetail = useCallback(() => {
+    if (detailRef.current) history.back();
+    else setDetail(null);
+  }, []);
+
+  // popstate: back button handling
+  useEffect(() => {
+    const handlePop = () => {
+      if (detailRef.current) {
+        setDetail(null);
+      } else if (screenRef.current !== 'idle') {
+        resetToHome();
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, [resetToHome]);
+
+  // ?q= deep link: run once on mount
+  useEffect(() => {
+    if (deepLinkFiredRef.current) return;
+    deepLinkFiredRef.current = true;
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q && q.trim()) {
+      history.replaceState(null, '', '/');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      runSearch(q.trim());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Recorder hook
   const { micState, level, startRecording, stopRecording } = useRecorder({
@@ -303,16 +440,8 @@ export default function Page() {
   }, [screen, startRecording, stopRecording]);
 
   const goHome = useCallback(() => {
-    searchSeqRef.current++; // invalidate any in-flight search
-    abortRef.current?.abort();
-    setScreen('idle');
-    setQuery('');
-    setKind('all');
-    setDetail(null);
-    setError(null);
-    setPicks([]);
-    setResultProviders([]);
-  }, []);
+    resetToHome();
+  }, [resetToHome]);
 
   const openWatchlist = useCallback(() => {
     refreshWatchlist();
@@ -389,17 +518,20 @@ export default function Page() {
             picks={displayPicks}
             error={error}
             providers={resultProviders}
-            onOpen={setDetail}
+            onOpen={openDetail}
             onNew={goHome}
             onToggleSave={toggleWatchlist}
             onSearch={runSearch}
+            onRefine={runRefine}
             onRetry={() => runSearch(activeQuery)}
+            finishing={finishing}
+            intent={intent}
           />
         )}
         {screen === 'watchlist' && (
           <WatchlistScreen
             items={watchlistAsPicks}
-            onOpen={setDetail}
+            onOpen={openDetail}
             onRemove={toggleWatchlist}
             onBrowse={goHome}
           />
@@ -414,8 +546,8 @@ export default function Page() {
           picks={displayPicks}
           saved={watchKeys.has(`${detail.kind}:${detail.tmdbId}`)}
           onToggleSave={toggleWatchlist}
-          onClose={() => setDetail(null)}
-          onOpen={setDetail}
+          onClose={closeDetail}
+          onOpen={openDetail}
         />
       )}
       {authOpen && (
@@ -445,6 +577,29 @@ export default function Page() {
           }}
         />
       )}
+      <div aria-live="polite">
+        {toast && (
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 28,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'var(--surface-raised)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 999,
+              padding: '10px 18px',
+              color: 'var(--text-hi)',
+              fontSize: 'var(--text-sm)',
+              zIndex: 90,
+              boxShadow: '0 12px 40px rgba(0,0,0,.45)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {toast}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

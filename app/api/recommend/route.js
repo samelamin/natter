@@ -3,8 +3,8 @@ import { logUsage } from '@/lib/usage.js';
 // ── Whole-result cache ───────────────────────────────────────────────────────
 // A search costs an LLM loop + web search + dozens of TMDB calls and takes
 // 20–45s; identical queries (suggestion chips!) should be instant. ONLY
-// unfiltered, successful runs are cached — provider-filtered results are
-// per-user and must never leak across sessions.
+// unfiltered, anonymous, non-refine runs are cached — provider-filtered or
+// per-user results must never leak across sessions.
 const _recCache = new Map(); // key → { payload, expiresAt }
 const REC_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const REC_CACHE_MAX = 200;
@@ -29,15 +29,35 @@ function cacheSet(key, payload) {
 
 const MAX_QUERY_CHARS = 500;
 
+/** Coerce and validate the prior body field. Returns undefined on any problem. */
+function parsePrior(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  if (typeof raw.query !== 'string' || raw.query.length > 500) return undefined;
+  if (!Array.isArray(raw.picks)) return undefined;
+  const picks = raw.picks.slice(0, 12).map((x) => {
+    if (!x || typeof x !== 'object') return null;
+    return {
+      id: String(x.id || '').slice(0, 32),
+      title: String(x.title || '').slice(0, 200),
+      year: Number.isInteger(x.year) ? x.year : undefined,
+      kind: x.kind === 'tv' ? 'tv' : 'film',
+    };
+  }).filter(Boolean);
+  return { query: raw.query, picks };
+}
+
 export async function POST(request) {
   const startedAt = Date.now();
   let query = '';
   let kind = 'all';
+  let prior;
 
   try {
     const body = await request.json();
     query = (body.query || '').trim();
     kind = body.kind || 'all';
+    // Strict coercion — never 500 on malformed prior.
+    prior = parsePrior(body.prior);
 
     if (!query) {
       return new Response(JSON.stringify({ error: 'query is required' }), {
@@ -63,6 +83,7 @@ export async function POST(request) {
   const { recommend } = await import('@/lib/agent.js');
   const { getSessionUser, rateLimited } = await import('@/lib/auth.js');
   const { providersFromQuery } = await import('@/lib/providers.js');
+  const { db, dbAvailable } = await import('@/lib/db.js');
 
   // Each search fans out to LLM rounds + web search + TMDB — cap per IP.
   const ip =
@@ -81,7 +102,25 @@ export async function POST(request) {
   const sessionUser = await getSessionUser(request);
   const services = sessionUser?.services || [];
 
+  // Build the watchlist exclusion set for signed-in users (item 8).
+  let excludeIds = new Set();
+  if (sessionUser && dbAvailable()) {
+    try {
+      const pool = await db();
+      const { rows } = await pool.query(
+        'SELECT tmdb_id, kind FROM watchlist WHERE user_id = $1 LIMIT 500',
+        [sessionUser.id],
+      );
+      excludeIds = new Set(rows.map((r) => `${r.kind}:${r.tmdb_id}`));
+    } catch {
+      // Non-fatal — search continues without exclusion.
+    }
+  }
+
   const filterActive = services.length > 0 || providersFromQuery(query).length > 0;
+  // Bypass the whole-result cache when a per-user filter or refine context is
+  // present — results would be incorrect or personalized.
+  const bypassCache = filterActive || !!prior || excludeIds.size > 0;
   const cacheKey = `${query.toLowerCase()}|${kind}`;
 
   const encoder = new TextEncoder();
@@ -101,7 +140,7 @@ export async function POST(request) {
       let lang = null;
       let cached = false;
       try {
-        const hit = !filterActive && cacheGet(cacheKey);
+        const hit = !bypassCache && cacheGet(cacheKey);
         if (hit) {
           cached = true;
           picksCount = hit.picks?.length ?? 0;
@@ -114,8 +153,11 @@ export async function POST(request) {
           query,
           kind,
           services,
+          prior,
+          excludeIds,
           onStep: (label) => emit({ type: 'step', label }),
           onCandidates: (items) => emit({ type: 'candidates', items }),
+          onPartial: ({ kind: k, intent, picks }) => emit({ type: 'partial', kind: k, intent, picks }),
         });
 
         picksCount = result.picks?.length ?? 0;
@@ -134,7 +176,7 @@ export async function POST(request) {
           picks: result.picks,
         };
         emit(done);
-        if (!filterActive && picksCount > 0) cacheSet(cacheKey, done);
+        if (!bypassCache && picksCount > 0) cacheSet(cacheKey, done);
       } catch (err) {
         ok = false;
         console.error('[/api/recommend]', err);
@@ -157,6 +199,14 @@ export async function POST(request) {
           ok,
           ms: Date.now() - startedAt,
         });
+        // Record the search for trending chips — fire-and-forget, never awaited.
+        // Only for real (non-cached) searches with results.
+        if (!cached && ok && picksCount > 0 && dbAvailable()) {
+          db().then((pool) => pool.query(
+            'INSERT INTO searches (query, lang, country, picks_count, ok) VALUES ($1, $2, $3, $4, $5)',
+            [query.slice(0, 200), lang, request.headers.get('cf-ipcountry') || null, picksCount, ok],
+          )).catch(() => {});
+        }
         try {
           controller.close();
         } catch {

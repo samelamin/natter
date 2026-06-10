@@ -106,3 +106,52 @@ test('rateLimited: allows max events then blocks within the window', () => {
   }
   assert.equal(rateLimited(key, { max: 3, windowMs: 60_000 }), true, 'fourth event blocked');
 });
+
+// ── validateCurated (lib/trending.js) ───────────────────────────────────────
+
+import { validateCurated } from '../lib/trending.js';
+
+const RAW = ['comedy movie', 'a French heist film', 'Korean thrillers', 'feel-good sci-fi', 'under 90 minutes'];
+
+test('validateCurated: exact-subset passes', () => {
+  const result = validateCurated(RAW, { chips: ['comedy movie', 'Korean thrillers', 'feel-good sci-fi'] });
+  assert.deepEqual(result, ['comedy movie', 'Korean thrillers', 'feel-good sci-fi']);
+});
+
+test('validateCurated: invented chip is rejected', () => {
+  const result = validateCurated(RAW, { chips: ['comedy movie', 'Korean thrillers', 'zombie horror'] });
+  // 'zombie horror' not in input — only 2 valid chips remain → null
+  assert.equal(result, null);
+});
+
+test('validateCurated: trim-equal chip is accepted', () => {
+  // Leading/trailing whitespace on the LLM output side should be trimmed and matched
+  const result = validateCurated(RAW, { chips: ['  comedy movie  ', 'Korean thrillers', 'feel-good sci-fi'] });
+  assert.deepEqual(result, ['comedy movie', 'Korean thrillers', 'feel-good sci-fi']);
+});
+
+test('validateCurated: rewritten casing chip is rejected (not trim-equal)', () => {
+  // Case-changed chip is NOT in the input set — must be rejected
+  const result = validateCurated(RAW, { chips: ['Comedy Movie', 'Korean thrillers', 'feel-good sci-fi'] });
+  // 'Comedy Movie'.trim() !== 'comedy movie' (case differs) → only 2 valid → null
+  assert.equal(result, null);
+});
+
+test('validateCurated: fewer than 3 valid chips returns null', () => {
+  assert.equal(
+    validateCurated(RAW, { chips: ['comedy movie', 'invented one'] }),
+    null,
+  );
+});
+
+test('validateCurated: caps at 8 chips', () => {
+  const big = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map((x) => `chip ${x}`);
+  const result = validateCurated(big, { chips: big });
+  assert.equal(result?.length, 8);
+});
+
+test('validateCurated: non-array chips returns null', () => {
+  assert.equal(validateCurated(RAW, { chips: 'comedy movie' }), null);
+  assert.equal(validateCurated(RAW, {}), null);
+  assert.equal(validateCurated(RAW, null), null);
+});

@@ -15,6 +15,7 @@ import {
   demoteGenresFor,
   languageFromQuery,
   dedupeByTitle,
+  isPlainQuery,
 } from '../lib/agent.js';
 
 // Genre names exactly as lib/tmdb.js emits them (movie 878 → "Sci-Fi",
@@ -148,4 +149,37 @@ test('rankAndBadge: animation is demoted below live-action when not requested', 
 test('rankAndBadge: without an animation demote, higher-rated animation ranks first', () => {
   const ranked = rankAndBadge([animatedSciFiShow, liveActionSciFiShow], 24, [], []);
   assert.equal(ranked[0].title, 'Arcane', 'control: rating wins when nothing is demoted');
+});
+
+// ── isPlainQuery: fast-path detection ─────────────────────────────────────────
+
+test('isPlainQuery: "a feel good comedy" → true (genre constraint, no specific qualifier)', () => {
+  const c = extractConstraints('a feel good comedy');
+  assert.equal(isPlainQuery('a feel good comedy', c, undefined), true);
+});
+
+test('isPlainQuery: "2010s thrillers" → true (decade + genre, no specific qualifier)', () => {
+  const c = extractConstraints('2010s thrillers');
+  assert.equal(isPlainQuery('2010s thrillers', c, undefined), true);
+});
+
+test('isPlainQuery: "something like game of thrones" → false (SPECIFIC_QUERY_RE: "like")', () => {
+  const c = extractConstraints('something like game of thrones');
+  assert.equal(isPlainQuery('something like game of thrones', c, undefined), false);
+});
+
+test('isPlainQuery: "films starring Tom Hanks" → false (SPECIFIC_QUERY_RE: "starring")', () => {
+  const c = extractConstraints('films starring Tom Hanks');
+  assert.equal(isPlainQuery('films starring Tom Hanks', c, undefined), false);
+});
+
+test('isPlainQuery: "a comedy" with prior present → false (refinement disables fast path)', () => {
+  const c = extractConstraints('a comedy');
+  const prior = { query: 'comedies', picks: [] };
+  assert.equal(isPlainQuery('a comedy', c, prior), false);
+});
+
+test('isPlainQuery: "something to watch tonight" (no constraints) → false (no genre/year)', () => {
+  const c = extractConstraints('something to watch tonight');
+  assert.equal(isPlainQuery('something to watch tonight', c, undefined), false);
 });

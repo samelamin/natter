@@ -21,6 +21,13 @@ export function DetailModal({ item, picks = [], saved = false, onToggleSave, onC
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Body scroll lock
+  useEffect(() => {
+    const saved = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = saved; };
+  }, []);
+
   // Fetch enrichment from /api/title
   const fetchEnrichment = useCallback(async () => {
     if (!item.tmdbId) return; // no TMDB id — render with basic pick fields
@@ -88,7 +95,7 @@ export function DetailModal({ item, picks = [], saved = false, onToggleSave, onC
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="detail" onClick={(e) => e.stopPropagation()}>
+      <div className="detail" role="dialog" aria-modal="true" aria-label={item.title} onClick={(e) => e.stopPropagation()}>
         <div className="detail__close">
           <IconButton variant="solid" round label="Close" icon={<Icons.x />} onClick={onClose} />
         </div>
@@ -113,12 +120,13 @@ export function DetailModal({ item, picks = [], saved = false, onToggleSave, onC
                   </div>
                 )}
               </div>
-              <p className="detail__synopsis" style={{ marginTop: 18 }}>
+              <p className="detail__synopsis" dir="auto" style={{ marginTop: 18 }}>
                 {data.synopsis || data.blurb}
               </p>
               {item.reason && (
                 <p
                   className="detail__synopsis"
+                  dir="auto"
                   style={{ marginTop: 10, color: 'var(--accent)', fontStyle: 'italic' }}
                 >
                   <Icons.sparkles /> Why this pick: {item.reason}

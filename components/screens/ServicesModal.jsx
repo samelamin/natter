@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button, Tag } from '@/components/natter/index.jsx';
 import { Icons } from '@/components/natter/Icons.jsx';
 import { PROVIDERS } from '@/lib/providers.js';
@@ -20,6 +20,20 @@ export function ServicesModal({ user, onClose, onSaved }) {
   const [selected, setSelected] = useState(new Set(user?.services || []));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+
+  // ESC key closes
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // Body scroll lock
+  useEffect(() => {
+    const saved = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = saved; };
+  }, []);
 
   function toggle(key) {
     setSelected((prev) => {
@@ -55,7 +69,7 @@ export function ServicesModal({ user, onClose, onSaved }) {
 
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={card} onClick={(e) => e.stopPropagation()}>
+      <div style={card} role="dialog" aria-modal="true" aria-label="My services" onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, fontSize: 'var(--text-xl)', color: 'var(--text-hi)' }}>My services</h2>
           <button
