@@ -126,7 +126,8 @@
       ],
       "transformations": [
         { "id": "labelsToFields", "options": { "mode": "columns" } },
-        { "id": "merge", "options": {} }
+        { "id": "merge", "options": {} },
+        { "id": "organize", "options": { "renameByName": { "Value #A": "Value" } } }
       ],
       "options": {
         "view": { "id": "zero", "lat": 24, "lon": 10, "zoom": 1.3 },
@@ -138,8 +139,8 @@
             "location": { "mode": "lookup", "lookup": "country", "gazetteer": "public/gazetteer/countries.json" },
             "config": {
               "style": {
-                "size": { "field": "Value", "min": 5, "max": 22 },
-                "color": { "fixed": "purple" },
+                "size": { "fixed": 12, "field": "Value", "min": 6, "max": 26 },
+                "color": { "fixed": "#B569FF" },
                 "opacity": 0.75
               },
               "showLegend": false
