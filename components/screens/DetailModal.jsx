@@ -56,6 +56,9 @@ export function DetailModal({ item, picks = [], onClose, onOpen }) {
     ? {
         ...item,
         ...enriched,
+        // match comes from the recommendation engine, not /api/title — don't
+        // let the enrichment's undefined wipe it
+        match: enriched.match ?? item.match,
         // poster/backdrop: prefer enriched, fall back to pick's basic fields
         posterSrc: enriched.posterSrc || item.poster,
         backdropSrc: enriched.backdropSrc || item.background,

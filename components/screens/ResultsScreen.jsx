@@ -3,7 +3,7 @@
 import { Button, PosterCard, Billboard } from '@/components/natter/index.jsx';
 import { Icons } from '@/components/natter/Icons.jsx';
 
-export function ResultsScreen({ query, kind, picks, onOpen, onNew }) {
+export function ResultsScreen({ query, kind, picks, error, onOpen, onNew }) {
   const shown = (picks || []).filter((p) => kind === 'all' || p.kind === kind);
   const featured = shown[0];
   const rest = shown.slice(1);
@@ -23,7 +23,11 @@ export function ResultsScreen({ query, kind, picks, onOpen, onNew }) {
       </div>
       {shown.length === 0 ? (
         <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-mid)' }}>
-          Nothing quite fit. Want to loosen the filters?
+          {error
+            ? error
+            : (picks || []).length > 0
+              ? `No ${kind === 'tv' ? 'TV series' : 'films'} in this set — try “Everything”.`
+              : 'Nothing quite fit. Want to loosen the filters?'}
         </div>
       ) : (
         <>
