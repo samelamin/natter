@@ -7,7 +7,7 @@
 
 import { db } from '@/lib/db.js';
 import { getSessionUser, rateLimited } from '@/lib/auth.js';
-import { sanitizeHistoryPicks } from '@/lib/history.js';
+import { sanitizeHistoryPicks, historyIdFrom } from '@/lib/history.js';
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -42,6 +42,38 @@ export async function GET(request) {
   } catch (err) {
     console.error('[/api/history GET]', err);
     return json({ error: 'could not load history' }, 500);
+  }
+}
+
+export async function DELETE(request) {
+  const user = await getSessionUser(request);
+  if (!user) return json({ error: 'sign in required' }, 401);
+
+  if (rateLimited(`hist:${user.id}`, { max: 30, windowMs: 60_000 })) {
+    return json({ error: 'Slow down a moment.' }, 429);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'invalid request body' }, 400);
+  }
+
+  const id = historyIdFrom(body.id);
+  if (id === null) return json({ error: 'id required' }, 400);
+
+  try {
+    const pool = await db();
+    const { rowCount } = await pool.query(
+      `DELETE FROM rec_history WHERE user_id = $1 AND id = $2`,
+      [user.id, id],
+    );
+    if (rowCount === 0) return json({ error: 'not found' }, 404);
+    return json({ ok: true });
+  } catch (err) {
+    console.error('[/api/history DELETE]', err);
+    return json({ error: 'could not delete' }, 500);
   }
 }
 

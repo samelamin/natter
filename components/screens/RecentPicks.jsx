@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Img } from '@/components/natter/index.jsx';
 import { historyLabel } from '@/lib/history.js';
+import { Icons } from '@/components/natter/Icons.jsx';
 
 /**
  * RecentPicks — shows the user's last 6 recommendation sessions.
@@ -41,6 +42,20 @@ export function RecentPicks({ user, onOpenSet }) {
 
   const visible = items.slice(0, 6);
 
+  function handleRemove(entry) {
+    // Optimistic removal — update state immediately, fire-and-forget the request.
+    setLoaded((prev) => {
+      if (!prev) return prev;
+      return { ...prev, items: prev.items.filter((it) => it.id !== entry.id) };
+    });
+    fetch('/api/history', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: entry.id }),
+    }).catch(() => {});
+    // On failure, do NOT restore — next mount will refetch truth.
+  }
+
   return (
     <section style={{ marginTop: 'var(--space-6, 24px)' }}>
       <div
@@ -58,70 +73,113 @@ export function RecentPicks({ user, onOpenSet }) {
           const label = historyLabel(entry);
           const poster = entry.picks?.[0]?.poster || null;
           return (
-            <button
+            // Outer wrapper is a <div> so we can have two sibling <button>s.
+            <div
               key={entry.id}
-              type="button"
-              aria-label={`Reopen picks for "${label}"`}
-              onClick={() => onOpenSet && onOpenSet(entry)}
               style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
+                position: 'relative',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 8,
-                textAlign: 'left',
                 width: '100%',
               }}
             >
-              <div
-                className="nat-poster__art"
+              {/* Main tile button — poster + caption */}
+              <button
+                type="button"
+                aria-label={`Reopen picks for "${label}"`}
+                onClick={() => onOpenSet && onOpenSet(entry)}
                 style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  textAlign: 'left',
                   width: '100%',
-                  borderRadius: 'var(--radius-poster, 8px)',
-                  overflow: 'hidden',
-                  background: poster ? undefined : 'var(--surface-card)',
-                  border: '1px solid var(--line-soft)',
                 }}
               >
-                {poster ? (
-                  <Img src={poster} alt={label} />
-                ) : (
-                  <div
-                    className="nat-poster__ph"
-                    style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', padding: 10 }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 'var(--text-xs)',
-                        color: 'var(--text-lo)',
-                        lineHeight: 1.3,
-                        overflow: 'hidden',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: 'vertical',
-                      }}
+                <div
+                  className="nat-poster__art"
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    borderRadius: 'var(--radius-poster, 8px)',
+                    overflow: 'hidden',
+                    background: poster ? undefined : 'var(--surface-card)',
+                    border: '1px solid var(--line-soft)',
+                  }}
+                >
+                  {poster ? (
+                    <Img src={poster} alt={label} />
+                  ) : (
+                    <div
+                      className="nat-poster__ph"
+                      style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', padding: 10 }}
                     >
-                      {label}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div
+                      <span
+                        style={{
+                          fontSize: 'var(--text-xs)',
+                          color: 'var(--text-lo)',
+                          lineHeight: 1.3,
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                        }}
+                      >
+                        {label}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div
+                  style={{
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-mid)',
+                    lineHeight: 1.4,
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                  }}
+                >
+                  {label}
+                </div>
+              </button>
+
+              {/* Remove button — absolutely positioned over the poster, top-right */}
+              <button
+                type="button"
+                aria-label={`Remove "${label}" from history`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemove(entry);
+                }}
                 style={{
-                  fontSize: 'var(--text-xs)',
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  background: 'rgba(0,0,0,.55)',
+                  border: '1px solid var(--line-soft)',
+                  borderRadius: 999,
+                  width: 24,
+                  height: 24,
+                  lineHeight: 1,
                   color: 'var(--text-mid)',
-                  lineHeight: 1.4,
-                  overflow: 'hidden',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  fontSize: 12,
                 }}
               >
-                {label}
-              </div>
-            </button>
+                <Icons.x width={12} height={12} />
+              </button>
+            </div>
           );
         })}
       </div>

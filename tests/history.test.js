@@ -104,3 +104,47 @@ test('historyLabel: returns empty string and does not throw for {} / null / unde
   assert.doesNotThrow(() => historyLabel(undefined));
   assert.equal(historyLabel(undefined), '');
 });
+
+// ── historyIdFrom ─────────────────────────────────────────────────────────────
+
+import { historyIdFrom } from '../lib/history.js';
+
+test('historyIdFrom: returns 7 for integer 7', () => {
+  assert.equal(historyIdFrom(7), 7);
+});
+
+test('historyIdFrom: returns 7 for string "7"', () => {
+  assert.equal(historyIdFrom('7'), 7);
+});
+
+test('historyIdFrom: returns null for 0', () => {
+  assert.equal(historyIdFrom(0), null);
+});
+
+test('historyIdFrom: returns null for negative integer -3', () => {
+  assert.equal(historyIdFrom(-3), null);
+});
+
+test('historyIdFrom: returns null for float 1.5', () => {
+  assert.equal(historyIdFrom(1.5), null);
+});
+
+test('historyIdFrom: returns null for string "1.5"', () => {
+  assert.equal(historyIdFrom('1.5'), null);
+});
+
+test('historyIdFrom: returns null for non-numeric string "abc"', () => {
+  assert.equal(historyIdFrom('abc'), null);
+});
+
+test('historyIdFrom: returns null for NaN', () => {
+  assert.equal(historyIdFrom(NaN), null);
+});
+
+test('historyIdFrom: returns null for null', () => {
+  assert.equal(historyIdFrom(null), null);
+});
+
+test('historyIdFrom: returns null for undefined', () => {
+  assert.equal(historyIdFrom(undefined), null);
+});

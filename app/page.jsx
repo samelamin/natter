@@ -8,6 +8,7 @@ import { WorkingScreen } from '@/components/screens/WorkingScreen.jsx';
 import { ResultsScreen } from '@/components/screens/ResultsScreen.jsx';
 import { WatchlistScreen } from '@/components/screens/WatchlistScreen.jsx';
 import { RecentPicks } from '@/components/screens/RecentPicks.jsx';
+import { IdleWatchlistRow } from '@/components/screens/IdleWatchlistRow.jsx';
 import { TmdbAttribution } from '@/components/natter/TmdbAttribution.jsx';
 import { DetailModal } from '@/components/screens/DetailModal.jsx';
 import { AuthModal } from '@/components/screens/AuthModal.jsx';
@@ -552,8 +553,32 @@ export default function Page() {
         year: i.year,
         rating: i.rating,
         inWatchlist: true,
+        watched: i.watched === true,
       })),
     [watchItems],
+  );
+
+  // Flip watched/unwatched on a saved item (optimistic; reconcile on failure).
+  const toggleWatched = useCallback(
+    async (item) => {
+      if (!item?.tmdbId) return;
+      const key = `${item.kind}:${item.tmdbId}`;
+      const next = !item.watched;
+      setWatchItems((prev) =>
+        prev.map((i) => (`${i.kind}:${i.tmdbId}` === key ? { ...i, watched: next } : i)),
+      );
+      try {
+        const res = await fetch('/api/watchlist', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tmdbId: item.tmdbId, kind: item.kind, watched: next }),
+        });
+        if (!res.ok) refreshWatchlist();
+      } catch {
+        refreshWatchlist();
+      }
+    },
+    [refreshWatchlist],
   );
 
   return (
@@ -592,6 +617,11 @@ export default function Page() {
               onMic={handleMicClick}
             />
             <RecentPicks user={user} onOpenSet={openHistorySet} />
+            <IdleWatchlistRow
+              items={watchlistAsPicks}
+              onOpen={openDetail}
+              onViewAll={openWatchlist}
+            />
           </>
         )}
         {screen === 'working' && (
@@ -620,6 +650,7 @@ export default function Page() {
             items={watchlistAsPicks}
             onOpen={openDetail}
             onRemove={toggleWatchlist}
+            onToggleWatched={toggleWatched}
             onBrowse={goHome}
           />
         )}

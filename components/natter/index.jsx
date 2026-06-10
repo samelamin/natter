@@ -449,6 +449,7 @@ export function PosterCard({ item, onPlay, onAdd, onClick }) {
   const meta = [<span key="y">{item.year}</span>];
   if (item.runtime) meta.push(<span key="r" className="nat-meta"><Icons.clock />{item.runtime}</span>);
   if (item.cert) meta.push(<span key="c" className="nat-meta--cert">{item.cert}</span>);
+  if (item.match) meta.push(<MatchScore key="m" value={item.match} />);
 
   const imgSrc = item.posterSrc || item.poster;
 

@@ -1,7 +1,8 @@
 /**
  * /api/watchlist — the signed-in user's saved titles.
- *   GET    → { items: [{ tmdbId, kind, title, poster, year, rating, addedAt }] }
+ *   GET    → { items: [{ tmdbId, kind, title, poster, year, rating, addedAt, watched }] }
  *   POST   { tmdbId, kind, title, poster?, year?, rating? } → upsert
+ *   PATCH  { tmdbId, kind, watched } → toggle watched state
  *   DELETE { tmdbId, kind } → remove
  * 401 without a session.
  */
@@ -22,7 +23,7 @@ export async function GET(request) {
   try {
     const pool = await db();
     const { rows } = await pool.query(
-      `SELECT tmdb_id, kind, title, poster, year, rating, added_at
+      `SELECT tmdb_id, kind, title, poster, year, rating, added_at, watched
        FROM watchlist WHERE user_id = $1 ORDER BY added_at DESC LIMIT 500`,
       [user.id],
     );
@@ -35,6 +36,7 @@ export async function GET(request) {
         year: r.year ?? undefined,
         rating: r.rating ?? undefined,
         addedAt: r.added_at,
+        watched: r.watched === true,
       })),
     });
   } catch (err) {
@@ -75,6 +77,29 @@ export async function POST(request) {
   } catch (err) {
     console.error('[/api/watchlist POST]', err.message);
     return json({ error: 'could not save' }, 500);
+  }
+}
+
+export async function PATCH(request) {
+  const user = await getSessionUser(request);
+  if (!user) return json({ error: 'sign in required' }, 401);
+  if (rateLimited('wl:' + user.id, { max: 60, windowMs: 60_000 })) return json({ error: 'Slow down a moment.' }, 429);
+  try {
+    const body = await request.json();
+    const tmdbId = Number(body?.tmdbId);
+    const kind = body?.kind === 'tv' ? 'tv' : body?.kind === 'film' ? 'film' : null;
+    if (!Number.isInteger(tmdbId) || tmdbId <= 0 || !kind) return json({ error: 'tmdbId and kind are required' }, 400);
+    const watched = body?.watched === true;
+    const pool = await db();
+    const { rowCount } = await pool.query(
+      'UPDATE watchlist SET watched = $1 WHERE user_id = $2 AND tmdb_id = $3 AND kind = $4',
+      [watched, user.id, tmdbId, kind],
+    );
+    if (rowCount === 0) return json({ error: 'not found' }, 404);
+    return json({ ok: true });
+  } catch (err) {
+    console.error('[/api/watchlist PATCH]', err.message);
+    return json({ error: 'could not update' }, 500);
   }
 }
 

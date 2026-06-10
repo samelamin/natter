@@ -7,6 +7,12 @@ import { ShareButton } from '@/components/natter/ShareButton.jsx';
 import { TitlePageActions } from '@/components/screens/TitlePageActions.jsx';
 import { TmdbAttribution } from '@/components/natter/TmdbAttribution.jsx';
 
+// Cache rendered title pages for a day: every share unfurl re-rendering the
+// page (and re-hitting TMDB) is the rate-limit pattern that killed the old
+// data layer. Nothing here reads cookies/headers, so ISR is safe; the auth
+// island hydrates client-side.
+export const revalidate = 86400;
+
 // Server component: thin wrapper over getDetails(). The presentational pieces are
 // client components but Next still SSRs them to HTML, so crawlers/cold visitors
 // get a real page. getDetails validates id/kind; we 404 on a non-title result.
@@ -15,8 +21,12 @@ async function load(kind, id) {
   try {
     const item = await getDetails({ tmdbId: id, kind: kind === 'tv' ? 'tv' : 'movie' });
     return item && item.title ? item : null;
-  } catch {
-    return null;
+  } catch (err) {
+    // Only a real TMDB 404 may become notFound(): with ISR (revalidate above),
+    // a 404 response is cached for the full window, so a transient 429/5xx
+    // must THROW instead — errors are never cached, the next request retries.
+    if (/^HTTP 404\b/.test(String(err?.message))) return null;
+    throw err;
   }
 }
 
