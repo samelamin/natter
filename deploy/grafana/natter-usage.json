@@ -32,7 +32,7 @@
       "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
       "datasource": { "type": "loki", "uid": "Loki" },
       "targets": [
-        { "expr": "avg(quantile_over_time(0.5, {container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" | unwrap ms [$__range]))", "queryType": "instant" }
+        { "expr": "quantile_over_time(0.5, {container_name=\"natter\"} | json ms=\"ms\", evt=\"evt\", route=\"route\" | evt=\"usage\" | route=\"recommend\" | unwrap ms [$__range])", "queryType": "instant" }
       ],
       "fieldConfig": { "defaults": { "unit": "ms", "decimals": 1 } }
     },
@@ -96,8 +96,8 @@
       "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
       "datasource": { "type": "loki", "uid": "Loki" },
       "targets": [
-        { "expr": "avg(quantile_over_time(0.5, {container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" | unwrap ms [$__auto]))", "queryType": "range", "legendFormat": "median" },
-        { "expr": "max(quantile_over_time(0.95, {container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" | unwrap ms [$__auto]))", "queryType": "range", "legendFormat": "p95" }
+        { "expr": "quantile_over_time(0.5, {container_name=\"natter\"} | json ms=\"ms\", evt=\"evt\", route=\"route\" | evt=\"usage\" | route=\"recommend\" | unwrap ms [$__auto])", "queryType": "range", "legendFormat": "median" },
+        { "expr": "quantile_over_time(0.95, {container_name=\"natter\"} | json ms=\"ms\", evt=\"evt\", route=\"route\" | evt=\"usage\" | route=\"recommend\" | unwrap ms [$__auto])", "queryType": "range", "legendFormat": "p95" }
       ],
       "fieldConfig": {
         "defaults": {
