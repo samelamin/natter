@@ -4,11 +4,15 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "pretest": "node -e \"const fs=require('fs');const want=parseInt(fs.readFileSync('.nvmrc','utf8'),10);const got=parseInt(process.versions.node,10);if(got<want){console.error('\\nNatter needs Node >='+want+' (.nvmrc) — you are on '+process.version+'. Run: nvm use\\n');process.exit(1)}\"",
     "test": "node --experimental-vm-modules --test tests/agent.test.js tests/resilience.test.js tests/tmdb.test.js tests/usage.test.js"
   },
   "dependencies": {
