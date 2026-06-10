@@ -22,7 +22,7 @@ export function TopBar({ onHome, kind, setKind, showFilter }) {
       )}
       <div className="topbar__right">
         <IconButton variant="ghost" label="Search" icon={<Icons.search />} onClick={onHome} />
-        <Avatar initials="JR" />
+        <Avatar initials="SE" />
       </div>
     </header>
   );
