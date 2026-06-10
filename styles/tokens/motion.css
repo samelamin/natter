@@ -1,0 +1,49 @@
+/* ============================================================
+   Natter — Motion Tokens
+   Calm, confident, cinematic. Quick on hover, eased on entrance.
+   Listening/agent states use gentle continuous pulses.
+   ============================================================ */
+
+:root {
+  /* ---- Durations ---- */
+  --dur-instant: 90ms; /* @kind other */
+  --dur-fast: 140ms; /* @kind other */
+  --dur-base: 220ms; /* @kind other */
+  --dur-slow: 340ms; /* @kind other */
+  --dur-slower: 520ms; /* @kind other */
+  --dur-pulse: 1600ms; /* @kind other */
+
+  /* ---- Easing ---- */
+  --ease-out: cubic-bezier(0.22, 0.8, 0.24, 1); /* @kind other */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* @kind other */
+  --ease-emphasis: cubic-bezier(0.2, 0.9, 0.1, 1); /* @kind other */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
+
+  /* ---- Common transitions ---- */
+  --transition-colors: color var(--dur-fast) var(--ease-standard),
+                       background-color var(--dur-fast) var(--ease-standard),
+                       border-color var(--dur-fast) var(--ease-standard),
+                       box-shadow var(--dur-fast) var(--ease-standard); /* @kind other */
+  --transition-transform: transform var(--dur-base) var(--ease-emphasis); /* @kind other */
+}
+
+/* ---- Shared keyframes ---- */
+@keyframes natter-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+@keyframes natter-pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+@keyframes natter-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes natter-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes natter-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}

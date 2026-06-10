@@ -1,0 +1,13 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Natter mark">
+  <defs>
+    <linearGradient id="natterGrad" x1="4" y1="44" x2="44" y2="4" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7C6CFF"></stop>
+      <stop offset="1" stop-color="#B26CFF"></stop>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="17" width="5" height="14" rx="2.5" fill="url(#natterGrad)"></rect>
+  <rect x="14" y="11" width="5" height="26" rx="2.5" fill="url(#natterGrad)"></rect>
+  <rect x="22" y="7" width="5" height="34" rx="2.5" fill="url(#natterGrad)"></rect>
+  <rect x="30" y="11" width="5" height="26" rx="2.5" fill="url(#natterGrad)"></rect>
+  <rect x="38" y="17" width="5" height="14" rx="2.5" fill="url(#natterGrad)"></rect>
+</svg>

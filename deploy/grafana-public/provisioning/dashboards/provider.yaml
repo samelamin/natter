@@ -1,0 +1,13 @@
+# Load dashboards from /etc/grafana/dashboards (the deploy/grafana folder is
+# mounted there), so this public instance only ever shows the Natter dashboard.
+apiVersion: 1
+providers:
+  - name: natter
+    orgId: 1
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

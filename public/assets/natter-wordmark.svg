@@ -1,0 +1,16 @@
+<svg width="196" height="44" viewBox="0 0 196 44" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Natter">
+  <defs>
+    <linearGradient id="natterWmGrad" x1="2" y1="40" x2="40" y2="4" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7C6CFF"></stop>
+      <stop offset="1" stop-color="#B26CFF"></stop>
+    </linearGradient>
+  </defs>
+  <g transform="translate(0,1)">
+    <rect x="2" y="16" width="4.4" height="12" rx="2.2" fill="url(#natterWmGrad)"></rect>
+    <rect x="9" y="11" width="4.4" height="22" rx="2.2" fill="url(#natterWmGrad)"></rect>
+    <rect x="16" y="8" width="4.4" height="28" rx="2.2" fill="url(#natterWmGrad)"></rect>
+    <rect x="23" y="11" width="4.4" height="22" rx="2.2" fill="url(#natterWmGrad)"></rect>
+    <rect x="30" y="16" width="4.4" height="12" rx="2.2" fill="url(#natterWmGrad)"></rect>
+  </g>
+  <text x="46" y="31" font-family="&#39;Bricolage Grotesque&#39;,&#39;Manrope&#39;,system-ui,sans-serif" font-size="30" font-weight="700" letter-spacing="-0.9" fill="#F4F3FB">Natter</text>
+</svg>

@@ -1,0 +1,100 @@
+/* ============================================================
+   Natter — Color Tokens
+   Dark-first, cinematic. Near-black surfaces with a slight
+   blue-violet tint, a signature "iris" accent, warm cinema
+   gold, and an aqua "live/listening" signal.
+   ============================================================ */
+
+:root {
+  /* ---- Base ink / surfaces (raised as numbers go down) ---- */
+  --ink-950: #07070C;   /* deepest — page letterbox / behind everything */
+  --ink-900: #0B0B12;   /* app background */
+  --ink-850: #101019;   /* sunken panels */
+  --ink-800: #15151F;   /* card surface */
+  --ink-750: #1A1A27;   /* card hover */
+  --ink-700: #20202F;   /* elevated surface / popover */
+  --ink-650: #28283A;   /* strong border */
+  --ink-600: #323248;   /* divider on raised */
+  --ink-500: #45455F;   /* muted UI lines */
+
+  /* ---- Neutral text ---- */
+  --white: #FFFFFF;
+  --text-hi:   #F4F3FB;  /* primary text */
+  --text-mid:  #B6B5CC;  /* secondary text */
+  --text-lo:   #7C7B95;  /* tertiary / captions */
+  --text-dim:  #56566B;  /* disabled / placeholder */
+
+  /* ---- Hairline borders (over dark) ---- */
+  --line-soft:   rgba(255,255,255,0.06);
+  --line:        rgba(255,255,255,0.10);
+  --line-strong: rgba(255,255,255,0.16);
+
+  /* ---- Brand: Iris (primary accent) ---- */
+  --iris-100: #ECE9FF;
+  --iris-300: #B9AEFF;
+  --iris-400: #9C8CFF;
+  --iris-500: #7C6CFF;   /* core brand */
+  --iris-600: #6552F0;
+  --iris-700: #5340D6;
+  --iris-glow: rgba(124,108,255,0.55);
+
+  /* ---- Brand: Violet (gradient partner) ---- */
+  --violet-500: #B26CFF;
+  --violet-600: #9B4DF0;
+
+  /* ---- Cinema gold (ratings, premium, highlights) ---- */
+  --gold-300: #FFD98A;
+  --gold-500: #F5B642;
+  --gold-600: #E09A1F;
+
+  /* ---- Aqua "live / listening" signal ---- */
+  --signal-400: #5BEAD4;
+  --signal-500: #2FD9C0;
+  --signal-glow: rgba(47,217,192,0.50);
+
+  /* ---- Semantic ---- */
+  --success-500: #3FD08A;
+  --success-bg:  rgba(63,208,138,0.12);
+  --warning-500: #F5B642;
+  --warning-bg:  rgba(245,182,66,0.12);
+  --danger-500:  #FF5C73;
+  --danger-bg:   rgba(255,92,115,0.12);
+  --info-500:    #7C6CFF;
+  --info-bg:     rgba(124,108,255,0.14);
+
+  /* ---- Signature gradients (use sparingly) ---- */
+  --grad-brand: linear-gradient(120deg, #7C6CFF 0%, #B26CFF 100%); /* @kind color */
+  --grad-brand-soft: linear-gradient(120deg, rgba(124,108,255,0.18), rgba(178,108,255,0.10)); /* @kind color */
+  --grad-listening: linear-gradient(120deg, #2FD9C0 0%, #7C6CFF 100%); /* @kind color */
+  --grad-poster-scrim: linear-gradient(to top, rgba(7,7,12,0.96) 6%, rgba(7,7,12,0.65) 38%, rgba(7,7,12,0) 70%); /* @kind color */
+  --grad-hero: radial-gradient(120% 80% at 50% -10%, rgba(124,108,255,0.22), rgba(11,11,18,0) 60%); /* @kind color */
+
+  /* ============================================================
+     SEMANTIC ALIASES — reference these in components
+     ============================================================ */
+  --bg-app:        var(--ink-900);
+  --bg-sunken:     var(--ink-850);
+  --surface-card:  var(--ink-800);
+  --surface-card-hover: var(--ink-750);
+  --surface-raised: var(--ink-700);
+  --surface-overlay: rgba(16,16,25,0.72);
+
+  --text-primary:   var(--text-hi);
+  --text-secondary: var(--text-mid);
+  --text-tertiary:  var(--text-lo);
+  --text-placeholder: var(--text-dim);
+  --text-on-accent: #0B0B12;
+
+  --border-subtle: var(--line-soft);
+  --border-default: var(--line);
+  --border-strong: var(--line-strong);
+
+  --accent:        var(--iris-500);
+  --accent-hover:  var(--iris-400);
+  --accent-press:  var(--iris-600);
+  --accent-quiet:  var(--info-bg);
+  --focus-ring:    var(--iris-400);
+
+  --rating: var(--gold-500);
+  --live: var(--signal-500);
+}

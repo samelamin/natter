@@ -1,0 +1,27 @@
+# Build artifacts & deps (rebuilt inside the image)
+node_modules
+.next
+out
+build
+
+# VCS & local tooling
+.git
+.gitignore
+.claude
+
+# Secrets — injected at runtime via env_file, never baked into the image
+.env*
+
+# Docker meta
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Not needed at build/runtime
+README.md
+docs
+tests
+deploy
+Natter Design System
+.DS_Store
+npm-debug.log*

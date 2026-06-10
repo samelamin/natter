@@ -1,0 +1,46 @@
+/* ============================================================
+   Natter — Typography Tokens
+   Display = Bricolage Grotesque, UI/Body = Manrope, Mono = JetBrains Mono
+   ============================================================ */
+
+:root {
+  /* ---- Families ---- */
+  --font-display: 'Bricolage Grotesque', 'Manrope', system-ui, sans-serif;
+  --font-sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* ---- Weights ---- */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-extrabold: 800;
+
+  /* ---- Type scale (px) ----
+     Display sizes pair with --font-display; text sizes with --font-sans */
+  --text-display-2xl: 76px;  /* hero one-word statements */
+  --text-display-xl: 56px;
+  --text-display-lg: 42px;
+  --text-display-md: 32px;
+  --text-h1: 28px;
+  --text-h2: 22px;
+  --text-h3: 18px;
+  --text-body-lg: 17px;
+  --text-body: 15px;
+  --text-sm: 13px;
+  --text-xs: 11.5px;
+  --text-mono-sm: 12px;
+
+  /* ---- Line heights ---- */
+  --leading-tight: 1.04;   /* display */
+  --leading-snug: 1.18;    /* headings */
+  --leading-normal: 1.5;   /* body */
+  --leading-relaxed: 1.65;
+
+  /* ---- Letter spacing ---- */
+  --tracking-tight: -0.03em;   /* large display */
+  --tracking-snug: -0.015em;   /* headings */
+  --tracking-normal: 0em;
+  --tracking-wide: 0.04em;     /* eyebrows / labels */
+  --tracking-caps: 0.14em;     /* all-caps micro labels */
+}

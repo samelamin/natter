@@ -1,0 +1,63 @@
+# Natter — containerised Next.js app + an optional public usage dashboard.
+#
+# Attaches to a shared, pre-existing reverse-proxy network (named `web` here)
+# so your nginx/Traefik container can reach it as http://natter:3000. If you run
+# Promtail on the host, it auto-discovers this container via the Docker socket
+# and ships its stdout — including the JSON usage lines — to Loki, labelled
+# container_name="natter". No Promtail/Loki changes required.
+#
+# Default json-file logging is intentional: that is what Promtail reads.
+#
+# .env.local (TMDB_KEY, MINIMAX_API_KEY, …) is gitignored — copy it onto the
+# host alongside this file before `docker compose up`. See .env.example.
+
+services:
+  natter:
+    build: .
+    image: natter:latest
+    container_name: natter
+    restart: unless-stopped
+    env_file:
+      - .env.local
+    ports:
+      # Loopback-only; the reverse proxy reaches the container over `web` by name.
+      - "127.0.0.1:3002:3000"
+    networks:
+      - web
+
+  # Dedicated, read-only Grafana for a PUBLIC usage dashboard.
+  # Anonymous viewing (no login), provisioned with ONLY the Natter dashboard +
+  # a Loki datasource — so none of your other dashboards are exposed.
+  # Reads the same Loki as your main Grafana over the `web` network.
+  natter-grafana:
+    image: grafana/grafana:11.0.0
+    container_name: natter-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SERVER_ROOT_URL=https://grafana.natter.cc/
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_USERS_VIEWERS_CAN_EDIT=false
+      - GF_USERS_DEFAULT_THEME=dark
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/natter-usage.json
+      # Set NATTER_GRAFANA_ADMIN_PASSWORD in the environment for a public deploy.
+      - GF_SECURITY_ADMIN_PASSWORD=${NATTER_GRAFANA_ADMIN_PASSWORD:-natter-admin}
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    volumes:
+      - ./deploy/grafana-public/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana:/etc/grafana/dashboards:ro
+      - natter_grafana_data:/var/lib/grafana
+    networks:
+      - web
+    ports:
+      - "127.0.0.1:3003:3000"
+
+networks:
+  # The shared external network your reverse proxy (and Loki) live on.
+  # Create it once with: docker network create web
+  web:
+    external: true
+
+volumes:
+  natter_grafana_data:

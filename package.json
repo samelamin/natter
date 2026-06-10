@@ -1,0 +1,24 @@
+{
+  "name": "natter",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "node --experimental-vm-modules --test tests/agent.test.js tests/resilience.test.js tests/tmdb.test.js tests/usage.test.js"
+  },
+  "dependencies": {
+    "next": "16.2.9",
+    "openai": "^6.42.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9"
+  }
+}

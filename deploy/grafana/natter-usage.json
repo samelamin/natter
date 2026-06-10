@@ -1,0 +1,107 @@
+{
+  "title": "Natter — Usage",
+  "uid": "natter-usage",
+  "tags": ["natter"],
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Searches",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "sum(count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" [$__range]))", "queryType": "instant" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Unique visitors (IPs)",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "count(sum by (ip) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" [$__range])))", "queryType": "instant" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Countries",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "count(sum by (country) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" [$__range])))", "queryType": "instant" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Failed searches",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "sum(count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" | ok=\"false\" [$__range]))", "queryType": "instant" }
+      ],
+      "options": { "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Searches over time",
+      "gridPos": { "x": 0, "y": 4, "w": 16, "h": 8 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "sum(count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" [$__auto]))", "queryType": "range", "legendFormat": "searches" }
+      ]
+    },
+    {
+      "type": "piechart",
+      "title": "Requests by endpoint",
+      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "sum by (route) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" [$__range]))", "queryType": "instant", "legendFormat": "{{route}}" }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Top search queries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 9 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "topk(25, sum by (query) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\" [$__range])))", "queryType": "instant" }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Requests by country",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 9 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "sum by (country) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" [$__range]))", "queryType": "instant" }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Top visitors (IP + country)",
+      "gridPos": { "x": 0, "y": 21, "w": 12, "h": 9 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "topk(25, sum by (ip, country) (count_over_time({container_name=\"natter\"} | json | evt=\"usage\" [$__range])))", "queryType": "instant" }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Live search feed",
+      "gridPos": { "x": 12, "y": 21, "w": 12, "h": 9 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "options": { "showTime": true, "wrapLogMessage": true },
+      "targets": [
+        { "expr": "{container_name=\"natter\"} | json | evt=\"usage\" | route=\"recommend\"", "queryType": "range" }
+      ]
+    }
+  ]
+}
