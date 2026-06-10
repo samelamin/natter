@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-label="Natter">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#15151F"/>
+      <stop offset="1" stop-color="#0B0B12"/>
+    </linearGradient>
+    <linearGradient id="bars" x1="12" y1="52" x2="52" y2="12" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7C6CFF"/>
+      <stop offset="1" stop-color="#B26CFF"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="15.5" fill="none" stroke="rgba(255,255,255,0.10)"/>
+  <rect x="14" y="25" width="5.5" height="14" rx="2.75" fill="url(#bars)"/>
+  <rect x="23" y="19" width="5.5" height="26" rx="2.75" fill="url(#bars)"/>
+  <rect x="32" y="14" width="5.5" height="36" rx="2.75" fill="url(#bars)"/>
+  <rect x="41" y="19" width="5.5" height="26" rx="2.75" fill="url(#bars)"/>
+  <rect x="50" y="25" width="5.5" height="14" rx="2.75" fill="url(#bars)"/>
+</svg>
