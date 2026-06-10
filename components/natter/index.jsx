@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Icons } from './Icons.jsx';
+import { ShareButton } from './ShareButton.jsx';
 
 // ── Logo ──────────────────────────────────────────────────────────────────
 export function Logo({ size = 30 }) {
@@ -398,6 +399,7 @@ export function Billboard({ item, onPlay, onDetails, onAdd }) {
           </Button>
           <Button variant="secondary" size="lg" iconLeft={<Icons.info />} onClick={onDetails}>More info</Button>
           <IconButton variant="solid" size="lg" round label="Add to watchlist" icon={<Icons.plus />} onClick={onAdd} />
+          <ShareButton item={item} variant="solid" size="lg" round />
         </div>
       </div>
     </Backdrop>
@@ -445,6 +447,7 @@ export function PosterCard({ item, onPlay, onAdd, onClick }) {
               icon={<Icons.play />}
               onClick={(e) => { e.stopPropagation(); onPlay && onPlay(); }}
             />
+            <ShareButton item={item} variant="solid" round size="lg" />
           </div>
         </div>
       </div>

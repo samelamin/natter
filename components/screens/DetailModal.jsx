@@ -7,6 +7,7 @@ import {
   MatchScore, PosterSkeleton,
 } from '@/components/natter/index.jsx';
 import { Icons } from '@/components/natter/Icons.jsx';
+import { ShareButton } from '@/components/natter/ShareButton.jsx';
 
 export function DetailModal({ item, picks = [], onClose, onOpen }) {
   const [enriched, setEnriched] = useState(null);
@@ -122,7 +123,7 @@ export function DetailModal({ item, picks = [], onClose, onOpen }) {
                 <Button variant="secondary" size="lg" iconLeft={<Icons.bookmark />}>
                   Watchlist
                 </Button>
-                <IconButton variant="solid" size="lg" label="Share" icon={<Icons.share />} />
+                <ShareButton item={data} variant="solid" size="lg" />
               </div>
             </div>
 
