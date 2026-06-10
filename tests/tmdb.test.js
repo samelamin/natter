@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 
 import {
   img,
+  tmdbImageUrl,
   runtime,
   trailerKey,
   movieCert,
@@ -40,6 +41,20 @@ test('img: returns null for null path', () => {
 
 test('img: returns null for undefined path', () => {
   assert.equal(img(undefined), null);
+});
+
+// ── tmdbImageUrl (inverse of img, for server-side next/og fetches) ──────────
+
+test('tmdbImageUrl: proxied path → absolute TMDB url', () => {
+  assert.equal(tmdbImageUrl('/img/w1280/x.jpg'), 'https://image.tmdb.org/t/p/w1280/x.jpg');
+});
+
+test('tmdbImageUrl: bare size/file path resolves against the CDN host', () => {
+  assert.equal(tmdbImageUrl('/w500/y.jpg'), 'https://image.tmdb.org/t/p/w500/y.jpg');
+});
+
+test('tmdbImageUrl: null → null', () => {
+  assert.equal(tmdbImageUrl(null), null);
 });
 
 // ── runtime ─────────────────────────────────────────────────────────────────
