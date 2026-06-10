@@ -318,11 +318,13 @@
 
 /* ===== Stills / scenes ===== */
 .stills{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
-.still{ aspect-ratio:16/10; border-radius:var(--radius-md); border:1px solid var(--line-soft); cursor:pointer; overflow:hidden;
+.still{ position:relative; aspect-ratio:16/10; border-radius:var(--radius-md); border:1px solid var(--line-soft); cursor:pointer; overflow:hidden;
   background:radial-gradient(120% 130% at 70% 22%, hsl(var(--h) 52% 32%), transparent 58%), linear-gradient(120deg, hsl(var(--h) 40% 16%), hsl(var(--h2) 44% 9%));
   transition:transform var(--dur-base) var(--ease-emphasis); }
 .still:hover{ transform:scale(1.03); }
-.still .nat-img{ position:relative; width:100%; height:100%; }
+/* Fill via absolute/inset:0 (like every other .nat-img). A percentage height here
+   collapses to 0 because .still's height comes from aspect-ratio, not an explicit value. */
+.still .nat-img{ position:absolute; inset:0; }
 
 /* ===== Cast ===== */
 .cast{ display:flex; gap:22px; flex-wrap:wrap; }
