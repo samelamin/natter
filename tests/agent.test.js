@@ -16,6 +16,8 @@ import {
   languageFromQuery,
   dedupeByTitle,
   isPlainQuery,
+  searchKindFor,
+  SPECIFIC_QUERY_RE,
 } from '../lib/agent.js';
 
 // Genre names exactly as lib/tmdb.js emits them (movie 878 → "Sci-Fi",
@@ -182,4 +184,83 @@ test('isPlainQuery: "a comedy" with prior present → false (refinement disables
 test('isPlainQuery: "something to watch tonight" (no constraints) → false (no genre/year)', () => {
   const c = extractConstraints('something to watch tonight');
   assert.equal(isPlainQuery('something to watch tonight', c, undefined), false);
+});
+
+// ── searchKindFor: which TYPES to fetch (vs requestedKind = which tab to land on) ──
+// A genre-less query that merely *mentions* a type ("a film to watch with my
+// mum") should still LAND on that tab but SEARCH both, so the other tab isn't a
+// dead end. Genre/specific queries and an explicit toggle keep the focused fetch.
+
+test('searchKindFor: "a film to watch with my mum" → all (genre-less vibe still searches TV)', () => {
+  assert.equal(searchKindFor('a film to watch with my mum', 'all'), 'all');
+});
+
+test('searchKindFor: "a show for tonight" → all (genre-less vibe still searches films)', () => {
+  assert.equal(searchKindFor('a show to watch tonight', 'all'), 'all');
+});
+
+test('searchKindFor: "a comedy film" → film (genre query stays focused; fill stocks the TV tab)', () => {
+  assert.equal(searchKindFor('a comedy film', 'all'), 'film');
+});
+
+test('searchKindFor: "a film starring Tom Hanks" → film (specific query stays focused)', () => {
+  assert.equal(searchKindFor('a film starring Tom Hanks', 'all'), 'film');
+});
+
+test('searchKindFor: no wording + Films toggle → film (respect the explicit toggle)', () => {
+  assert.equal(searchKindFor('something to watch with my mum', 'film'), 'film');
+});
+
+test('searchKindFor: "something to watch tonight" (no wording, no toggle) → all', () => {
+  assert.equal(searchKindFor('something to watch tonight', 'all'), 'all');
+});
+
+// ── SPECIFIC_QUERY_RE: co-viewing "with <people>" is NOT a named-actor query ──
+// The /i flag defeats the [A-Z][a-z]+ intent of the "with <Name>" branch, so it
+// used to match "watch with my mum / the kids / friends" and mis-route those
+// (genre pool skipped, exact-titles padding rules applied). A real "with <Actor>"
+// must still count as specific so "a comedy with Tom Hanks" reaches the agent loop.
+
+test('SPECIFIC_QUERY_RE: co-viewing companions ("with my mum" etc.) are NOT specific', () => {
+  assert.equal(SPECIFIC_QUERY_RE.test('a comedy to watch with my mum'), false);
+  assert.equal(SPECIFIC_QUERY_RE.test('something to watch with the kids'), false);
+  assert.equal(SPECIFIC_QUERY_RE.test('a film to watch with friends'), false);
+  assert.equal(SPECIFIC_QUERY_RE.test('a movie with my partner'), false);
+  assert.equal(SPECIFIC_QUERY_RE.test('a film for the family'), false);
+});
+
+test('SPECIFIC_QUERY_RE: genuine "with <Actor>" stays specific (incl. lowercase voice transcripts)', () => {
+  assert.equal(SPECIFIC_QUERY_RE.test('a film with Tom Hanks'), true);
+  assert.equal(SPECIFIC_QUERY_RE.test('a comedy with tom hanks'), true);
+});
+
+test('SPECIFIC_QUERY_RE: other specific markers are unaffected', () => {
+  assert.equal(SPECIFIC_QUERY_RE.test('a film starring Tom Hanks'), true);
+  assert.equal(SPECIFIC_QUERY_RE.test('films starring tom hanks'), true); // lowercase voice
+  assert.equal(SPECIFIC_QUERY_RE.test('something like Inception'), true);
+  assert.equal(SPECIFIC_QUERY_RE.test('a movie about grief'), true);
+  assert.equal(SPECIFIC_QUERY_RE.test('a thriller set in the UK'), true);
+  assert.equal(SPECIFIC_QUERY_RE.test('directed by Nolan'), true);
+});
+
+test('SPECIFIC_QUERY_RE: plain genre/mood queries are not specific', () => {
+  assert.equal(SPECIFIC_QUERY_RE.test('a feel good comedy'), false);
+  assert.equal(SPECIFIC_QUERY_RE.test('tense thrillers'), false);
+});
+
+// The routing payoff: a genre query with co-viewing context now takes the
+// plain-query fast path (proper genre pool) instead of the exact-titles branch.
+test('isPlainQuery: "a comedy to watch with my mum" → true (co-viewing is not a qualifier)', () => {
+  const c = extractConstraints('a comedy to watch with my mum');
+  assert.equal(isPlainQuery('a comedy to watch with my mum', c, undefined), true);
+});
+
+test('isPlainQuery: "a comedy with Tom Hanks" → false (named actor still routes to the agent loop)', () => {
+  const c = extractConstraints('a comedy with Tom Hanks');
+  assert.equal(isPlainQuery('a comedy with Tom Hanks', c, undefined), false);
+});
+
+test('isPlainQuery: "a comedy like Inception" → false (comparison still specific)', () => {
+  const c = extractConstraints('a comedy like Inception');
+  assert.equal(isPlainQuery('a comedy like Inception', c, undefined), false);
 });
