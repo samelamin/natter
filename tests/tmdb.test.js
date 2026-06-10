@@ -509,6 +509,57 @@ test('getDetails: caches result to avoid duplicate fetch', async () => {
   }
 });
 
+// ── getDetails input validation (path-injection guard) ─────────────────────
+
+test('getDetails: rejects path-injection in tmdbId without any upstream fetch', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url) => { calls.push(url); return { ok: true, status: 200, json: async () => MATRIX_FIXTURE }; };
+  try {
+    for (const bad of ['693134/../../authentication/token/new', '603?api_key=leak', 'abc', '12.5', '', ' 7 ']) {
+      await assert.rejects(getDetails({ tmdbId: bad, kind: 'movie' }), /invalid tmdbId/);
+    }
+    assert.equal(calls.length, 0, 'must not issue any upstream fetch for an injected id');
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
+test('getDetails: rejects an unexpected kind instead of silently defaulting to movie', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url) => { calls.push(url); return { ok: true, status: 200, json: async () => MATRIX_FIXTURE }; };
+  try {
+    for (const bad of ['film', 'banana', '', '__proto__']) {
+      await assert.rejects(getDetails({ tmdbId: 603, kind: bad }), /invalid kind/);
+    }
+    assert.equal(calls.length, 0, 'must not fetch for an invalid kind');
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
+test('getDetails: rejects path-injection in season without any upstream fetch', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url) => { calls.push(url); return { ok: true, status: 200, json: async () => MATRIX_FIXTURE }; };
+  try {
+    await assert.rejects(
+      getDetails({ tmdbId: 1396, kind: 'tv', season: '1/../../authentication/token/new' }),
+      /invalid season/,
+    );
+    assert.equal(calls.length, 0, 'must not fetch for an injected season');
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
 // ── Genre maps ────────────────────────────────────────────────────────────────
 
 test('MOVIE_GENRE_IDS: Comedy → 35', () => {
