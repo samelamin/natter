@@ -19,12 +19,22 @@ export function ResultsScreen({
   onShareSet,
   finishing,
   intent,
+  appendedCount = 0,
 }) {
   const [refine, setRefine] = useState('');
   const shown = (picks || []).filter((p) => kind === 'all' || p.kind === kind);
   const featured = shown[0];
   const rest = shown.slice(1);
   const save = onToggleSave || (() => {});
+
+  // Appended-section split: last appendedCount items from picks (pre-filter)
+  // intersected with the kind filter, to render them below a divider.
+  const appendedIds =
+    appendedCount > 0
+      ? new Set((picks || []).slice(-appendedCount).map((p) => p.id))
+      : new Set();
+  const pinnedRest = appendedCount > 0 ? rest.filter((p) => !appendedIds.has(p.id)) : rest;
+  const appendedShown = appendedCount > 0 ? rest.filter((p) => appendedIds.has(p.id)) : [];
 
   // Prefer onRefine when present, fall back to onSearch for compatibility
   const handleRefineSubmit = () => {
@@ -111,7 +121,7 @@ export function ResultsScreen({
                 <h2>More matches</h2>
               </div>
               <div key={query} className="poster-grid poster-grid--reveal">
-                {rest.map((p, i) => (
+                {pinnedRest.map((p, i) => (
                   <div key={p.id || p.title} className="reveal-item" style={{ '--i': i }}>
                     <PosterCard
                       item={p}
@@ -122,6 +132,25 @@ export function ResultsScreen({
                   </div>
                 ))}
               </div>
+              {appendedShown.length > 0 && (
+                <>
+                  <div className="section-label" style={{ marginTop: 44 }}>
+                    <h2>{appendedShown.length} more</h2>
+                  </div>
+                  <div className="poster-grid poster-grid--reveal">
+                    {appendedShown.map((p, i) => (
+                      <div key={p.id || p.title} className="reveal-item" style={{ '--i': pinnedRest.length + i }}>
+                        <PosterCard
+                          item={p}
+                          onClick={() => onOpen(p)}
+                          onPlay={() => onOpen(p)}
+                          onAdd={() => save(p)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           )}
         </>

@@ -12,6 +12,11 @@ import { TmdbAttribution } from '@/components/natter/TmdbAttribution.jsx';
 // data layer. Nothing here reads cookies/headers, so ISR is safe; the auth
 // island hydrates client-side.
 export const revalidate = 86400;
+// force-static prerenders this route and makes cookies()/headers()/useSearchParams()
+// return empty. SAFE ONLY because nothing here reads request-time data (auth is the
+// client TitlePageActions island). If a future edit adds a server-side cookie/header
+// read, REMOVE this line or the read will silently return empty.
+export const dynamic = 'force-static';
 
 // Server component: thin wrapper over getDetails(). The presentational pieces are
 // client components but Next still SSRs them to HTML, so crawlers/cold visitors

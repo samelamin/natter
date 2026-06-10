@@ -1,5 +1,6 @@
 import { logUsage } from '@/lib/usage.js';
 import { cacheGetJSON, cacheSetJSON } from '@/lib/cache.js';
+import { recCacheKey, buildDonePayload } from '@/lib/recCache.js';
 
 // ── Whole-result cache ───────────────────────────────────────────────────────
 // A search costs an LLM loop + web search + dozens of TMDB calls and takes
@@ -122,7 +123,7 @@ export async function POST(request) {
   // Bypass the whole-result cache when a per-user filter or refine context is
   // present — results would be incorrect or personalized.
   const bypassCache = filterActive || !!prior || excludeIds.size > 0;
-  const cacheKey = `${query.toLowerCase()}|${kind}`;
+  const cacheKey = recCacheKey(query, kind);
 
   const encoder = new TextEncoder();
 
@@ -176,19 +177,7 @@ export async function POST(request) {
 
         picksCount = result.picks?.length ?? 0;
         lang = result.lang ?? null;
-        const done = {
-          type: 'done',
-          query,
-          intent: result.intent,
-          // What the wording asked for ('film'|'tv'|'all') — the client lands
-          // the toggle here; the pool itself carries both types.
-          kind: result.kind,
-          // Display labels of any active streaming-service filter (for the
-          // "Only what you can watch on …" note in the results header).
-          providers: result.providers,
-          lang: result.lang,
-          picks: result.picks,
-        };
+        const done = buildDonePayload(query, result);
         emit(done);
         if (!bypassCache && picksCount > 0) {
           cacheSet(cacheKey, done);

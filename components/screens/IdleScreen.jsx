@@ -3,23 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PromptBar, Tag } from '@/components/natter/index.jsx';
 import { Icons } from '@/components/natter/Icons.jsx';
-
-const POOL = [
-  'A cosy whodunnit',
-  "Something that'll make us cry",
-  'Under 90 minutes',
-  'A proper hidden gem',
-  'Tense but not gory',
-  'Something like Game of Thrones',
-  'Will Ferrell comedies',
-  '90s romcoms',
-  'A French heist film',
-  'Feel-good sci-fi',
-  'A film to watch with my mum',
-  'Korean thrillers',
-  'فيلم كوميدي',
-  'Animated, but for adults',
-];
+import { POOL } from '@/lib/suggestionPool.js';
 
 function pickFive(pool) {
   const arr = [...pool];

@@ -14,6 +14,7 @@ import { DetailModal } from '@/components/screens/DetailModal.jsx';
 import { AuthModal } from '@/components/screens/AuthModal.jsx';
 import { ServicesModal } from '@/components/screens/ServicesModal.jsx';
 import { useRecorder } from '@/lib/useRecorder.js';
+import { mergePinnedPicks } from '@/lib/pinPicks.js';
 
 export default function Page() {
   const [screen, setScreen] = useState('idle'); // idle | listening | working | results | watchlist
@@ -27,6 +28,7 @@ export default function Page() {
   const [resultProviders, setResultProviders] = useState([]);
   const [finishing, setFinishing] = useState(false);
   const [intent, setIntent] = useState('');
+  const [appendedCount, setAppendedCount] = useState(0);
 
   // Account state
   const [user, setUser] = useState(null);
@@ -203,6 +205,7 @@ export default function Page() {
     setResultProviders([]);
     setFinishing(false);
     setIntent('');
+    setAppendedCount(0);
   }, []);
 
   const runSearch = useCallback(
@@ -230,9 +233,17 @@ export default function Page() {
       setResultProviders([]);
       setFinishing(false);
       setIntent('');
+      setAppendedCount(0);
 
       // Push a history entry so back works
       history.pushState({ n: 'app' }, '', '');
+
+      // Pin-partial-order state lives with THIS stream: the first 'partial'
+      // pins the visible order; later events patch in place and append. A new
+      // search gets fresh locals, and an aborted stream's state simply dies
+      // with its closure (no refs to reset, StrictMode-safe).
+      let streamPicks = [];
+      let streamPinned = [];
 
       try {
         const body = { query: q, kind: effectiveKind };
@@ -258,7 +269,11 @@ export default function Page() {
               return fresh.length ? [...prev, ...fresh].slice(0, 24) : prev;
             });
           } else if (event.type === 'partial') {
-            setPicks(event.picks || []);
+            const m = mergePinnedPicks(streamPicks, event.picks || [], streamPinned);
+            streamPicks = m.picks;
+            streamPinned = m.pinnedIds;
+            setPicks(m.picks);
+            setAppendedCount(m.appendedCount);
             // Land on the tab the wording asked for — same logic as 'done'
             setKind(event.kind === 'film' || event.kind === 'tv' ? event.kind : 'all');
             setScreen('results');
@@ -266,7 +281,11 @@ export default function Page() {
             if (event.intent) setIntent(event.intent);
           } else if (event.type === 'done') {
             sawDone = true;
-            setPicks(event.picks || []);
+            const m = mergePinnedPicks(streamPicks, event.picks || [], streamPinned);
+            streamPicks = m.picks;
+            streamPinned = m.pinnedIds;
+            setPicks(m.picks);
+            setAppendedCount(m.appendedCount);
             // Land on the tab the wording asked for ("a comedy movie" → Films);
             // the other tab is stocked with the same genre, one tap away.
             setKind(event.kind === 'film' || event.kind === 'tv' ? event.kind : 'all');
@@ -489,6 +508,7 @@ export default function Page() {
     setError(null);
     setResultProviders([]);
     setFinishing(false);
+    setAppendedCount(0);
     setScreen('results');
   }, []);
 
@@ -643,6 +663,7 @@ export default function Page() {
             onShareSet={shareSet}
             finishing={finishing}
             intent={intent}
+            appendedCount={appendedCount}
           />
         )}
         {screen === 'watchlist' && (
