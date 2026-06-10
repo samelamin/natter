@@ -794,6 +794,23 @@ test('tmdbDiscover: passes originCountry', async () => {
   }
 });
 
+test('tmdbDiscover: passes without_genres to exclude genres (e.g. Animation)', async () => {
+  _testCacheClear();
+  const originalFetch = global.fetch;
+  let capturedUrl;
+  global.fetch = async (url) => {
+    capturedUrl = url;
+    return { ok: true, status: 200, json: async () => DISCOVER_RESPONSE };
+  };
+  try {
+    await tmdbDiscover({ kind: 'tv', genre: 'Sci-Fi', withoutGenres: [16] });
+    assert.ok(capturedUrl.includes('without_genres=16'), 'Should exclude Animation (id 16)');
+  } finally {
+    global.fetch = originalFetch;
+    _testCacheClear();
+  }
+});
+
 test('tmdbDiscover: returns [] on fetch error', async () => {
   _testCacheClear();
   const originalFetch = global.fetch;
