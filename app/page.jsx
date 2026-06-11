@@ -312,13 +312,16 @@ export default function Page() {
               // Signed-in: also save the pick set server-side (fire-and-forget;
               // never blocks the stream or the paint).
               if (userRef.current) {
+                const historyQuery = opts?.prior?.query
+                  ? `${opts.prior.query} → ${q}`.slice(0, 500)
+                  : q;
                 import('@/lib/history.js')
                   .then(({ sanitizeHistoryPicks }) =>
                     fetch('/api/history', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        query: q,
+                        query: historyQuery,
                         intent: event.intent || null,
                         kind: event.kind || null,
                         picks: sanitizeHistoryPicks(event.picks),

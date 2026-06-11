@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { sanitizeHistoryPicks, historyLabel } from '../lib/history.js';
+import { sanitizeHistoryPicks, historyLabel, historyOverlapRatio, findSupersededHistoryIds } from '../lib/history.js';
 
 // ── sanitizeHistoryPicks ─────────────────────────────────────────────────────
 
@@ -147,4 +147,113 @@ test('historyIdFrom: returns null for null', () => {
 
 test('historyIdFrom: returns null for undefined', () => {
   assert.equal(historyIdFrom(undefined), null);
+});
+
+// ── historyOverlapRatio ───────────────────────────────────────────────────────
+
+function makePicks(tmdbIds, kind = 'film') {
+  return tmdbIds.map((id) => ({ tmdbId: id, kind, title: `Title ${id}`, id: `t${id}` }));
+}
+
+test('historyOverlapRatio: identical sets of 5 → 1', () => {
+  const a = makePicks([1, 2, 3, 4, 5]);
+  const b = makePicks([1, 2, 3, 4, 5]);
+  assert.equal(historyOverlapRatio(a, b), 1);
+});
+
+test('historyOverlapRatio: completely disjoint sets → 0', () => {
+  const a = makePicks([1, 2, 3]);
+  const b = makePicks([4, 5, 6]);
+  assert.equal(historyOverlapRatio(a, b), 0);
+});
+
+test('historyOverlapRatio: half-overlap uses min(|A|,|B|) as denominator', () => {
+  // A has 10 items, B has 4 items, 2 in common → 2/min(10,4)=2/4=0.5
+  const a = makePicks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  const b = makePicks([1, 2, 20, 21]);
+  assert.equal(historyOverlapRatio(a, b), 0.5);
+});
+
+test('historyOverlapRatio: empty array A → 0', () => {
+  assert.equal(historyOverlapRatio([], makePicks([1, 2])), 0);
+});
+
+test('historyOverlapRatio: empty array B → 0', () => {
+  assert.equal(historyOverlapRatio(makePicks([1, 2]), []), 0);
+});
+
+test('historyOverlapRatio: null A → 0', () => {
+  assert.equal(historyOverlapRatio(null, makePicks([1])), 0);
+});
+
+test('historyOverlapRatio: non-array A → 0', () => {
+  assert.equal(historyOverlapRatio('bad', makePicks([1])), 0);
+});
+
+test('historyOverlapRatio: malformed entries (missing tmdbId) are skipped', () => {
+  const a = [{ kind: 'film' }, { tmdbId: 1, kind: 'film' }, { tmdbId: 'abc', kind: 'film' }];
+  const b = [{ tmdbId: 1, kind: 'film' }];
+  // valid in A: just tmdbId:1; valid in B: tmdbId:1; intersection=1; min(1,1)=1 → 1.0
+  assert.equal(historyOverlapRatio(a, b), 1);
+});
+
+test('historyOverlapRatio: kind distinguishes same tmdbId (film vs tv)', () => {
+  const a = [{ tmdbId: 1, kind: 'film' }];
+  const b = [{ tmdbId: 1, kind: 'tv' }];
+  assert.equal(historyOverlapRatio(a, b), 0);
+});
+
+// ── findSupersededHistoryIds ──────────────────────────────────────────────────
+
+const PROD_IDS = [101, 102, 103, 104, 105, 106, 107, 108, 109, 110];
+const prodPicks = makePicks(PROD_IDS);
+
+test('findSupersededHistoryIds: exact query match (case/whitespace-insensitive)', () => {
+  const rows = [
+    { id: 1, query: 'Fancy comedy tonight.', picks: makePicks([1, 2, 3]) },
+    { id: 2, query: 'something else', picks: makePicks([4, 5, 6]) },
+  ];
+  const result = findSupersededHistoryIds(rows, '  fancy comedy tonight.  ', makePicks([7, 8, 9]));
+  assert.deepEqual(result, [1]);
+});
+
+test('findSupersededHistoryIds: overlap ≥ 0.6 catches production duplicate pair', () => {
+  // Two rows with the same 10 tmdbIds, different query strings
+  const rows = [
+    { id: 10, query: 'Fancy comedy tonight.', picks: prodPicks },
+    { id: 11, query: 'unrelated query', picks: makePicks([200, 201, 202]) },
+  ];
+  // incoming: "I fancy comedy tonight." with same 10 picks
+  const result = findSupersededHistoryIds(rows, 'I fancy comedy tonight.', prodPicks);
+  assert.ok(result.includes(10), 'should supersede id 10 (high overlap)');
+  assert.ok(!result.includes(11), 'should not supersede id 11 (different picks)');
+});
+
+test('findSupersededHistoryIds: overlap 0.3 is NOT superseded', () => {
+  // 3 of 10 in common → 0.3 < 0.6
+  const a = makePicks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  const b = makePicks([1, 2, 3, 20, 21, 22, 23, 24, 25, 26]);
+  const rows = [{ id: 99, query: 'other query', picks: a }];
+  const result = findSupersededHistoryIds(rows, 'different query', b);
+  assert.deepEqual(result, []);
+});
+
+test('findSupersededHistoryIds: bad inputs → []', () => {
+  assert.deepEqual(findSupersededHistoryIds(null, 'q', prodPicks), []);
+  assert.deepEqual(findSupersededHistoryIds(undefined, 'q', prodPicks), []);
+  assert.deepEqual(findSupersededHistoryIds('bad', 'q', prodPicks), []);
+  assert.deepEqual(findSupersededHistoryIds([], null, prodPicks), []);
+  assert.deepEqual(findSupersededHistoryIds([], 'q', null), []);
+});
+
+test('findSupersededHistoryIds: returns BOTH an exact-query id and an overlap id', () => {
+  const rows = [
+    { id: 1, query: 'exact match query', picks: makePicks([50, 51, 52]) },
+    { id: 2, query: 'totally different query', picks: prodPicks },
+  ];
+  // incoming matches id:1 by exact query, and id:2 by overlap
+  const result = findSupersededHistoryIds(rows, 'Exact Match Query', prodPicks);
+  assert.ok(result.includes(1), 'should include exact-match id 1');
+  assert.ok(result.includes(2), 'should include overlap id 2');
+  assert.equal(result.length, 2);
 });

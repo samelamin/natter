@@ -71,7 +71,8 @@ export function RecentPicks({ user, onOpenSet }) {
       <div className="strip">
         {visible.map((entry) => {
           const label = historyLabel(entry);
-          const poster = entry.picks?.[0]?.poster || null;
+          const posterPicks = (entry.picks || []).filter((p) => p && p.poster).slice(0, 4);
+          const posterCount = posterPicks.length;
           return (
             // Outer wrapper is a <div> so we can have two sibling <button>s.
             <div
@@ -108,12 +109,40 @@ export function RecentPicks({ user, onOpenSet }) {
                     width: '100%',
                     borderRadius: 'var(--radius-poster, 8px)',
                     overflow: 'hidden',
-                    background: poster ? undefined : 'var(--surface-card)',
+                    background: posterCount === 0 ? 'var(--surface-card)' : undefined,
                     border: '1px solid var(--line-soft)',
                   }}
                 >
-                  {poster ? (
-                    <Img src={poster} alt={label} />
+                  {posterCount >= 2 ? (
+                    // 2×2 mini-grid of up to 4 posters
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gridTemplateRows: '1fr 1fr',
+                        gap: 2,
+                      }}
+                    >
+                      {Array.from({ length: 4 }, (_, i) => {
+                        const p = posterPicks[i];
+                        return (
+                          <div
+                            key={i}
+                            style={{
+                              position: 'relative',
+                              overflow: 'hidden',
+                              background: p ? undefined : 'var(--surface-card)',
+                            }}
+                          >
+                            {p && <Img src={p.poster} alt={p.title || label} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : posterCount === 1 ? (
+                    <Img src={posterPicks[0].poster} alt={label} />
                   ) : (
                     <div
                       className="nat-poster__ph"

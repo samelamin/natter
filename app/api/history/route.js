@@ -7,7 +7,7 @@
 
 import { db } from '@/lib/db.js';
 import { getSessionUser, rateLimited } from '@/lib/auth.js';
-import { sanitizeHistoryPicks, historyIdFrom } from '@/lib/history.js';
+import { sanitizeHistoryPicks, historyIdFrom, findSupersededHistoryIds } from '@/lib/history.js';
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -105,6 +105,20 @@ export async function POST(request) {
 
   try {
     const pool = await db();
+
+    // Delete any superseded rows (exact query match or high pick overlap)
+    const { rows: existingRows } = await pool.query(
+      `SELECT id, query, picks FROM rec_history WHERE user_id = $1`,
+      [user.id],
+    );
+    const superseded = findSupersededHistoryIds(existingRows, query, picks);
+    if (superseded.length > 0) {
+      await pool.query(
+        `DELETE FROM rec_history WHERE user_id = $1 AND id = ANY($2::bigint[])`,
+        [user.id, superseded],
+      );
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO rec_history (user_id, query, intent, kind, picks)
        VALUES ($1, $2, $3, $4, $5)
