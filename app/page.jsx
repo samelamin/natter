@@ -29,6 +29,10 @@ export default function Page() {
   const [finishing, setFinishing] = useState(false);
   const [intent, setIntent] = useState('');
   const [appendedCount, setAppendedCount] = useState(0);
+  // Per-tab current page (reset on a new search, preserved across tab switches).
+  const [pageState, setPageState] = useState({ all: 1, film: 1, tv: 1 });
+  // True while deeper pages are still streaming in — drives the "of N+" hint.
+  const [deepening, setDeepening] = useState(false);
 
   // Account state
   const [user, setUser] = useState(null);
@@ -206,6 +210,8 @@ export default function Page() {
     setFinishing(false);
     setIntent('');
     setAppendedCount(0);
+    setPageState({ all: 1, film: 1, tv: 1 });
+    setDeepening(false);
   }, []);
 
   const runSearch = useCallback(
@@ -234,6 +240,8 @@ export default function Page() {
       setFinishing(false);
       setIntent('');
       setAppendedCount(0);
+      setPageState({ all: 1, film: 1, tv: 1 });
+      setDeepening(false);
 
       // Push a history entry so back works
       history.pushState({ n: 'app' }, '', '');
@@ -278,6 +286,7 @@ export default function Page() {
             setKind(event.kind === 'film' || event.kind === 'tv' ? event.kind : 'all');
             setScreen('results');
             setFinishing(true);
+            if (event.phase === 'deepening') setDeepening(true);
             if (event.intent) setIntent(event.intent);
           } else if (event.type === 'done') {
             sawDone = true;
@@ -292,6 +301,7 @@ export default function Page() {
             setResultProviders(Array.isArray(event.providers) ? event.providers : []);
             setScreen('results');
             setFinishing(false);
+            setDeepening(false);
             if (event.intent) setIntent(event.intent);
             if (event.message && !event.picks?.length) {
               setError(event.message);
@@ -512,6 +522,8 @@ export default function Page() {
     setResultProviders([]);
     setFinishing(false);
     setAppendedCount(0);
+    setPageState({ all: 1, film: 1, tv: 1 });
+    setDeepening(false);
     setScreen('results');
   }, []);
 
@@ -667,6 +679,9 @@ export default function Page() {
             finishing={finishing}
             intent={intent}
             appendedCount={appendedCount}
+            page={pageState[kind] || 1}
+            onPageChange={(p) => setPageState((s) => ({ ...s, [kind]: p }))}
+            deepening={deepening}
           />
         )}
         {screen === 'watchlist' && (

@@ -182,7 +182,7 @@ export async function POST(request) {
           excludeIds,
           onStep: (label) => emit({ type: 'step', label }),
           onCandidates: (items) => emit({ type: 'candidates', items }),
-          onPartial: ({ kind: k, intent, picks }) => emit({ type: 'partial', kind: k, intent, picks }),
+          onPartial: ({ kind: k, intent, picks, phase }) => emit({ type: 'partial', kind: k, intent, picks, phase }),
         });
 
         picksCount = result.picks?.length ?? 0;

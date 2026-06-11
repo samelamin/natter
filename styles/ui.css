@@ -189,6 +189,9 @@
 .section-label{ display:flex; align-items:center; justify-content:space-between; margin:8px 0 18px; }
 .section-label h2{ font-family:var(--font-display); font-weight:700; font-size:var(--text-h2); letter-spacing:-0.02em; }
 .poster-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(196px,1fr)); gap:30px 22px; }
+.pagination{ display:flex; align-items:center; justify-content:center; gap:16px; margin:34px 0 6px; }
+.pagination__status{ font-family:var(--font-mono); font-size:var(--text-mono-sm); color:var(--text-mid); min-width:8.5ch; text-align:center; }
+.pagination .nat-btn[disabled]{ opacity:.4; pointer-events:none; }
 .strip{ display:grid; grid-auto-flow:column; grid-auto-columns:148px; gap:16px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none; }
 .strip::-webkit-scrollbar{ display:none; }
 .results-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; padding:36px 0 26px; }

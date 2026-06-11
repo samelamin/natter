@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button, PosterCard, Billboard, PromptBar } from '@/components/natter/index.jsx';
 import { Icons } from '@/components/natter/Icons.jsx';
+import { chunk, PAGE_SIZE } from '@/lib/paginate.js';
 
 export function ResultsScreen({
   query,
@@ -20,8 +21,12 @@ export function ResultsScreen({
   finishing,
   intent,
   appendedCount = 0,
+  page = 1,
+  onPageChange,
+  deepening = false,
 }) {
   const [refine, setRefine] = useState('');
+  const gridRef = useRef(null);
   const shown = (picks || []).filter((p) => kind === 'all' || p.kind === kind);
   const featured = shown[0];
   const rest = shown.slice(1);
@@ -35,6 +40,18 @@ export function ResultsScreen({
       : new Set();
   const pinnedRest = appendedCount > 0 ? rest.filter((p) => !appendedIds.has(p.id)) : rest;
   const appendedShown = appendedCount > 0 ? rest.filter((p) => appendedIds.has(p.id)) : [];
+
+  // Paginate the main grid 9 at a time. The hero (featured) sits above page 1
+  // only; pages 2+ are pure grids. Total page count grows live as deeper picks
+  // stream in (deepening) — the current page never jumps under the user.
+  const pages = chunk(pinnedRest, PAGE_SIZE);
+  const totalPages = Math.max(1, pages.length);
+  const cur = Math.min(Math.max(1, page), totalPages);
+  const pageItems = pages[cur - 1] || [];
+  const goToPage = (p) => {
+    if (onPageChange) onPageChange(p);
+    gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   // Prefer onRefine when present, fall back to onSearch for compatibility
   const handleRefineSubmit = () => {
@@ -107,21 +124,27 @@ export function ResultsScreen({
         </div>
       ) : (
         <>
-          <div className="reveal-item" style={{ '--i': 0 }}>
-            <Billboard
-              item={featured}
-              onPlay={() => onOpen(featured)}
-              onDetails={() => onOpen(featured)}
-              onAdd={() => save(featured)}
-            />
-          </div>
-          {rest.length > 0 && (
+          {cur === 1 && (
+            <div className="reveal-item" style={{ '--i': 0 }}>
+              <Billboard
+                item={featured}
+                onPlay={() => onOpen(featured)}
+                onDetails={() => onOpen(featured)}
+                onAdd={() => save(featured)}
+              />
+            </div>
+          )}
+          {pinnedRest.length > 0 && (
             <>
-              <div className="section-label" style={{ marginTop: 44 }}>
+              <div
+                ref={gridRef}
+                className="section-label"
+                style={{ marginTop: cur === 1 ? 44 : 8, scrollMarginTop: 12 }}
+              >
                 <h2>More matches</h2>
               </div>
-              <div key={query} className="poster-grid poster-grid--reveal">
-                {pinnedRest.map((p, i) => (
+              <div key={`${query}-${cur}`} className="poster-grid poster-grid--reveal">
+                {pageItems.map((p, i) => (
                   <div key={p.id || p.title} className="reveal-item" style={{ '--i': i }}>
                     <PosterCard
                       item={p}
@@ -132,25 +155,39 @@ export function ResultsScreen({
                   </div>
                 ))}
               </div>
-              {appendedShown.length > 0 && (
-                <>
-                  <div className="section-label" style={{ marginTop: 44 }}>
-                    <h2>{appendedShown.length} more</h2>
-                  </div>
-                  <div className="poster-grid poster-grid--reveal">
-                    {appendedShown.map((p, i) => (
-                      <div key={p.id || p.title} className="reveal-item" style={{ '--i': pinnedRest.length + i }}>
-                        <PosterCard
-                          item={p}
-                          onClick={() => onOpen(p)}
-                          onPlay={() => onOpen(p)}
-                          onAdd={() => save(p)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </>
+              {totalPages > 1 && (
+                <div className="pagination">
+                  <Button variant="secondary" size="md" onClick={() => goToPage(cur - 1)} disabled={cur <= 1}>
+                    ‹ Prev
+                  </Button>
+                  <span className="pagination__status" aria-live="polite">
+                    Page {cur} of {totalPages}
+                    {deepening ? '+' : ''}
+                  </span>
+                  <Button variant="secondary" size="md" onClick={() => goToPage(cur + 1)} disabled={cur >= totalPages}>
+                    Next ›
+                  </Button>
+                </div>
               )}
+            </>
+          )}
+          {cur === totalPages && appendedShown.length > 0 && (
+            <>
+              <div className="section-label" style={{ marginTop: 44 }}>
+                <h2>{appendedShown.length} more</h2>
+              </div>
+              <div className="poster-grid poster-grid--reveal">
+                {appendedShown.map((p, i) => (
+                  <div key={p.id || p.title} className="reveal-item" style={{ '--i': i }}>
+                    <PosterCard
+                      item={p}
+                      onClick={() => onOpen(p)}
+                      onPlay={() => onOpen(p)}
+                      onAdd={() => save(p)}
+                    />
+                  </div>
+                ))}
+              </div>
             </>
           )}
         </>
