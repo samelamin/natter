@@ -11,6 +11,15 @@
  *   - The guard fires only when Redis IS present, preventing double runs on prod.
  *   The concurrent-call test below asserts 'no redis' on both — correct given
  *   this placement.
+ *
+ * Return shape (all paths):
+ *   { warmed, skipped, trendingWarmed, trendingSkipped, reason? }
+ *   - reason is present only on early-exit paths (no redis / already running).
+ *   - trendingWarmed and trendingSkipped are always 0 on the no-redis path
+ *     because the function returns before any trending import is attempted.
+ *   - lib/trending.js is NEVER in warm.js's static import graph; the no-redis
+ *     early-return guarantees the dynamic import('./trending.js') is never
+ *     reached on that path.
  */
 
 import { test } from 'node:test';
@@ -22,7 +31,7 @@ import { POOL } from '../lib/suggestionPool.js';
 
 // ── 1. warmTrendingChips: no-op without REDIS_URL ──────────────────────────
 
-test('warmTrendingChips: resolves to { warmed:0, skipped:0, reason:"no redis" } without REDIS_URL', async () => {
+test('warmTrendingChips: resolves to full no-redis shape without REDIS_URL', async () => {
   const saved = process.env.REDIS_URL;
   delete process.env.REDIS_URL;
 
@@ -33,7 +42,15 @@ test('warmTrendingChips: resolves to { warmed:0, skipped:0, reason:"no redis" } 
     if (saved !== undefined) process.env.REDIS_URL = saved;
   }
 
-  assert.deepEqual(result, { warmed: 0, skipped: 0, reason: 'no redis' });
+  // Shape includes trendingWarmed/trendingSkipped (both 0) because the function
+  // returns before any warming — static or trending — is attempted.
+  assert.deepEqual(result, {
+    warmed: 0,
+    skipped: 0,
+    trendingWarmed: 0,
+    trendingSkipped: 0,
+    reason: 'no redis',
+  });
 });
 
 test('warmTrendingChips: does not throw without REDIS_URL', async () => {
@@ -45,6 +62,25 @@ test('warmTrendingChips: does not throw without REDIS_URL', async () => {
   } finally {
     if (saved !== undefined) process.env.REDIS_URL = saved;
   }
+});
+
+test('warmTrendingChips: no-redis path returns reason "no redis"', async () => {
+  const saved = process.env.REDIS_URL;
+  delete process.env.REDIS_URL;
+
+  let result;
+  try {
+    result = await warmTrendingChips();
+  } finally {
+    if (saved !== undefined) process.env.REDIS_URL = saved;
+  }
+
+  assert.equal(result.reason, 'no redis');
+  // trendingWarmed and trendingSkipped must be present (0) on the no-redis path.
+  // The dynamic import('./trending.js') is never reached on this path — the
+  // function exits at the cacheAvailable() guard before any import occurs.
+  assert.equal(result.trendingWarmed, 0);
+  assert.equal(result.trendingSkipped, 0);
 });
 
 // ── 2. recCacheKey: lowercases and joins with | ────────────────────────────
@@ -133,4 +169,9 @@ test('warmTrendingChips: two concurrent calls both resolve without throwing (no-
   // Both see no-redis because the guard is after the cacheAvailable() check.
   assert.equal(r1.reason, 'no redis', 'First call: expected no redis reason');
   assert.equal(r2.reason, 'no redis', 'Second call: expected no redis reason (guard after cacheAvailable)');
+  // Both results must include the trendingWarmed/trendingSkipped fields.
+  assert.equal(r1.trendingWarmed, 0);
+  assert.equal(r1.trendingSkipped, 0);
+  assert.equal(r2.trendingWarmed, 0);
+  assert.equal(r2.trendingSkipped, 0);
 });

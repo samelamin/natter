@@ -117,6 +117,16 @@ export async function POST(request) {
     } catch {
       // Non-fatal — search continues without exclusion.
     }
+    try {
+      const pool = await db();
+      const { rows: watched } = await pool.query(
+        'SELECT tmdb_id, kind FROM trakt_watched WHERE user_id = $1 LIMIT 2000',
+        [sessionUser.id],
+      );
+      for (const r of watched) excludeIds.add(`${r.kind}:${r.tmdb_id}`);
+    } catch {
+      // Non-fatal — Trakt watched exclusions skipped.
+    }
   }
 
   const filterActive = services.length > 0 || providersFromQuery(query).length > 0;

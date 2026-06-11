@@ -1,15 +1,62 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button, PosterCard } from '@/components/natter/index.jsx';
 import { Icons } from '@/components/natter/Icons.jsx';
+import { pickHydrationTargets, createLimiter } from '@/lib/hydrateQueue.js';
+
+// Module-level cache: `${kind}:${tmdbId}` → watch object | null
+// null = fetched but nothing available / failed; do not refetch.
+// Survives tab toggles and remounts within the session.
+const watchCache = new Map();
+
+const hydrateLimiter = createLimiter(4);
 
 export function WatchlistScreen({ items, onOpen, onRemove, onToggleWatched, onBrowse }) {
   const [filter, setFilter] = useState('towatch');
+  const [hydratedTick, setHydratedTick] = useState(0);
 
   const toWatchItems = items.filter((p) => !p.watched);
   const watchedItems = items.filter((p) => p.watched);
   const visibleItems = filter === 'towatch' ? toWatchItems : watchedItems;
+
+  useEffect(() => {
+    if (!items.length) return;
+
+    const targets = pickHydrationTargets(visibleItems, new Set(watchCache.keys()), 12);
+    if (!targets.length) return;
+
+    let alive = true;
+
+    const tasks = targets.map((p) => async () => {
+      // /api/title requires kind 'movie' or 'tv'; watchlist stores 'film' for movies
+      const apiKind = p.kind === 'tv' ? 'tv' : 'movie';
+      const key = `${p.kind}:${p.tmdbId}`;
+      try {
+        const res = await fetch('/api/title', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tmdbId: p.tmdbId, kind: apiKind }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          watchCache.set(key, data.watch ?? null);
+        } else {
+          watchCache.set(key, null);
+        }
+      } catch {
+        watchCache.set(key, null);
+      }
+    });
+
+    hydrateLimiter(tasks).then(() => {
+      if (alive) setHydratedTick((t) => t + 1);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [items, filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   let emptyMessage = null;
   if (visibleItems.length === 0) {
@@ -66,36 +113,39 @@ export function WatchlistScreen({ items, onOpen, onRemove, onToggleWatched, onBr
         </div>
       ) : (
         <div className="poster-grid">
-          {visibleItems.map((p) => (
-            <div key={`${p.kind}:${p.tmdbId}`}>
-              <PosterCard
-                item={p}
-                onClick={() => onOpen(p)}
-                onPlay={() => onOpen(p)}
-                onAdd={() => onRemove(p)}
-              />
-              <div style={{ marginTop: 4 }}>
-                <button
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: '2px 0',
-                    cursor: p.watched ? 'default' : 'pointer',
-                    color: 'var(--text-mid)',
-                    fontSize: 'var(--text-xs, 0.75rem)',
-                    textAlign: 'left',
-                    width: '100%',
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleWatched && onToggleWatched(p);
-                  }}
-                >
-                  {p.watched ? 'Watched ✓' : 'Mark watched'}
-                </button>
+          {visibleItems.map((p) => {
+            const watch = watchCache.get(`${p.kind}:${p.tmdbId}`);
+            return (
+              <div key={`${p.kind}:${p.tmdbId}`}>
+                <PosterCard
+                  item={watch ? { ...p, watch } : p}
+                  onClick={() => onOpen(p)}
+                  onPlay={() => onOpen(p)}
+                  onAdd={() => onRemove(p)}
+                />
+                <div style={{ marginTop: 4 }}>
+                  <button
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '2px 0',
+                      cursor: p.watched ? 'default' : 'pointer',
+                      color: 'var(--text-mid)',
+                      fontSize: 'var(--text-xs, 0.75rem)',
+                      textAlign: 'left',
+                      width: '100%',
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleWatched && onToggleWatched(p);
+                    }}
+                  >
+                    {p.watched ? 'Watched ✓' : 'Mark watched'}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
