@@ -46,7 +46,9 @@ scp .env.local <your-host>:/srv/natter/.env.local
 
 Required: `TMDB_KEY`, `MINIMAX_API_KEY` (the agent). Optional: `MINIMAX_MODEL`
 (default `MiniMax-M2`), `MINIMAX_BASE_URL`, `GROQ_API_KEY` (transcription; falls
-back to `OPENAI_API_KEY`), `BRAVE_SEARCH_API_KEY`. See `.env.example`.
+back to `OPENAI_API_KEY`), `BRAVE_SEARCH_API_KEY`. If you want the private
+feedback admin, also set `NATTER_ADMIN_USER`, `NATTER_ADMIN_PASSWORD`, and
+optionally `NATTER_AGENT_TOKEN` for periodic review agents. See `.env.example`.
 
 ### A3. Build + run the container
 
@@ -93,6 +95,22 @@ ssh <your-host> 'NOW=$(date +%s); docker run --rm --network web curlimages/curl:
 
 Then open Grafana → **Natter — Usage**: the smoke-test query appears in
 *Top search queries* and *Live search feed*.
+
+If feedback admin env vars are configured, verify private feedback collection:
+
+```bash
+# public feedback submit
+ssh <your-host> 'curl -s -X POST http://127.0.0.1:3002/api/feedback \
+  -H "Content-Type: application/json" \
+  -H "CF-Connecting-IP: 203.0.113.10" -H "CF-IPCountry: GB" \
+  -d "{\"message\":\"deploy smoke feedback\",\"category\":\"idea\",\"page\":\"/\"}"'
+
+# admin/agent queue read, using values already present in /srv/natter/.env.local
+ssh <your-host> 'cd /srv/natter &&
+  set -a && . ./.env.local && set +a &&
+  curl -s -u "$NATTER_ADMIN_USER:$NATTER_ADMIN_PASSWORD" \
+    http://127.0.0.1:3002/api/admin/feedback?limit=5 | head -c 500; echo'
+```
 
 > **Datasource uid gotcha.** The dashboard references the Loki datasource by
 > `uid: Loki`. If your provisioned datasource has no explicit uid (Grafana
@@ -176,9 +194,19 @@ ssh <your-host> 'cd /srv/natter && docker compose up -d --build'
 
 Dashboard changes: re-`scp` `natter-usage.json` (auto-reloads).
 
+Feedback admin after deploy:
+
+- Human review page: `https://natter.cc/admin/feedback`
+- Agent queue API: `GET /api/admin/feedback?status=new&limit=50`
+- Agent update API: `PATCH /api/admin/feedback/<id>`
+
+Use HTTP Basic auth for the human page and `Authorization: Bearer
+$NATTER_AGENT_TOKEN` for agents. Keep both secrets in `.env.local` or your
+server environment, never in git.
+
 ## Privacy / retention
 
-Usage lines contain the full search query, the client IP, and country. They live
-in Loki under your stack's retention policy. To reduce PII, drop or truncate `ip`
-in `lib/usage.js`. To change how long data is kept, adjust your Loki retention
-config.
+Usage lines contain the full search query, a short client IP hash, and country.
+Feedback usage lines include category/status only, not full messages or contact
+details. They live in Loki under your stack's retention policy. To change how
+long data is kept, adjust your Loki retention config.

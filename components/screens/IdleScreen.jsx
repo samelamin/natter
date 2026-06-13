@@ -14,7 +14,7 @@ function pickFive(pool) {
   return arr.slice(0, 5);
 }
 
-export function IdleScreen({ query, setQuery, onSend, micState, onMic }) {
+export function IdleScreen({ query, setQuery, onSend, micState, onMic, onFeedback }) {
   // Hydration-stable: start with first 5, randomise after mount
   const [chips, setChips] = useState(POOL.slice(0, 5));
   // Recent searches — empty until useEffect runs (hydration safety)
@@ -107,6 +107,12 @@ export function IdleScreen({ query, setQuery, onSend, micState, onMic }) {
           <div className="hero__hint">
             <Icons.mic /> Say it or type it — a vibe, an actor, a half-remembered plot.
           </div>
+          {onFeedback && (
+            <button className="feedback-entry" type="button" onClick={onFeedback}>
+              <Icons.sparkles />
+              Suggest an improvement
+            </button>
+          )}
         </div>
       </div>
     </div>

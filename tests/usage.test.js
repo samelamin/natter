@@ -31,6 +31,8 @@ test('buildUsageLine: full search line from Cloudflare headers', () => {
     route: 'recommend',
     query: 'cosy sci-fi like Arrival',
     kind: 'movie',
+    category: null,
+    status: null,
     lang: 'ar',
     picksCount: 6,
     ok: true,
@@ -44,6 +46,8 @@ test('buildUsageLine: full search line from Cloudflare headers', () => {
     route: 'recommend',
     query: 'cosy sci-fi like Arrival',
     kind: 'movie',
+    category: null,
+    status: null,
     lang: 'ar',
     picksCount: 6,
     ok: true,
@@ -72,6 +76,8 @@ test('buildUsageLine: optional fields default to null, ok defaults true', () => 
   const line = buildUsageLine({ request: req(), route: 'transcribe' });
   assert.equal(line.query, null);
   assert.equal(line.kind, null);
+  assert.equal(line.category, null);
+  assert.equal(line.status, null);
   assert.equal(line.lang, null);
   assert.equal(line.picksCount, null);
   assert.equal(line.ms, null);
@@ -107,6 +113,24 @@ test('buildUsageLine: ip falls back to x-real-ip when no CF or XFF', () => {
 
 test('buildUsageLine: ok:false is preserved', () => {
   assert.equal(buildUsageLine({ request: req(), route: 'recommend', ok: false }).ok, false);
+});
+
+test('buildUsageLine: feedback events include category/status but no message/contact', () => {
+  const line = buildUsageLine({
+    request: req({ 'cf-ipcountry': 'GB' }),
+    route: 'feedback',
+    category: 'bug',
+    status: 'new',
+    // These are deliberately ignored by buildUsageLine.
+    message: 'The modal broke for me',
+    contact: 'sam@example.com',
+    now: '2026-06-13T12:00:00.000Z',
+  });
+
+  assert.equal(line.category, 'bug');
+  assert.equal(line.status, 'new');
+  assert.equal(JSON.stringify(line).includes('The modal broke for me'), false);
+  assert.equal(JSON.stringify(line).includes('sam@example.com'), false);
 });
 
 // ── logUsage ─────────────────────────────────────────────────────────────────

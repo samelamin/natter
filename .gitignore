@@ -43,6 +43,7 @@ next-env.d.ts
 
 # Local Claude Code tooling
 .claude/
+.superpowers/
 
 # Design handoff bundle (reference only)
 Natter Design System/

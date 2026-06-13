@@ -98,10 +98,18 @@ test('decryptToken returns null when tag is tampered (authentication failure)', 
 test('decryptToken returns null when ciphertext is tampered', () => {
   const stored = encryptToken('original');
   const parts = stored.split('.');
-  // Flip last char of cipher segment
-  const lastChar = parts[2].slice(-1);
-  const flipped = lastChar === 'A' ? 'B' : 'A';
-  const tampered = `${parts[0]}.${parts[1]}.${parts[2].slice(0, -1)}${flipped}`;
+  // Re-encode the ciphertext with a known-corrupted byte. Flipping the final
+  // base64url character can alter only padding bits for short tokens.
+  const fromB64url = (s) => {
+    const padded = s.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = (4 - (padded.length % 4)) % 4;
+    return Buffer.from(padded + '='.repeat(pad), 'base64');
+  };
+  const toB64url = (buf) =>
+    buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const cipherBuf = fromB64url(parts[2]);
+  cipherBuf[0] ^= 0xff;
+  const tampered = `${parts[0]}.${parts[1]}.${toB64url(cipherBuf)}`;
   assert.equal(decryptToken(tampered), null);
 });
 

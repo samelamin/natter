@@ -13,6 +13,7 @@ import { TmdbAttribution } from '@/components/natter/TmdbAttribution.jsx';
 import { DetailModal } from '@/components/screens/DetailModal.jsx';
 import { AuthModal } from '@/components/screens/AuthModal.jsx';
 import { ServicesModal } from '@/components/screens/ServicesModal.jsx';
+import { FeedbackModal } from '@/components/screens/FeedbackModal.jsx';
 import { useRecorder } from '@/lib/useRecorder.js';
 import { mergePinnedPicks } from '@/lib/pinPicks.js';
 
@@ -38,6 +39,7 @@ export default function Page() {
   const [user, setUser] = useState(null);
   const [authOpen, setAuthOpen] = useState(null); // null | 'signin' | 'signup'
   const [servicesOpen, setServicesOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [watchItems, setWatchItems] = useState([]);
 
   // Toast state
@@ -650,6 +652,7 @@ export default function Page() {
               onSend={runSearch}
               micState={promptMicState}
               onMic={handleMicClick}
+              onFeedback={() => setFeedbackOpen(true)}
             />
             <RecentPicks user={user} onOpenSet={openHistorySet} />
             <IdleWatchlistRow
@@ -737,6 +740,12 @@ export default function Page() {
             setUser(u);
             setServicesOpen(false);
           }}
+        />
+      )}
+      {feedbackOpen && (
+        <FeedbackModal
+          onClose={() => setFeedbackOpen(false)}
+          onSubmitted={() => showToast('Thanks — suggestion sent')}
         />
       )}
       <div aria-live="polite">
