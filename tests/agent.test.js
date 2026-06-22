@@ -15,9 +15,12 @@ import {
   demoteGenresFor,
   languageFromQuery,
   dedupeByTitle,
+  closeTitleMatches,
   isPlainQuery,
+  isIncompleteQuery,
   searchKindFor,
   SPECIFIC_QUERY_RE,
+  validatePicksForQuery,
 } from '../lib/agent.js';
 
 // Genre names exactly as lib/tmdb.js emits them (movie 878 → "Sci-Fi",
@@ -43,12 +46,26 @@ test('extractConstraints: spoken forms without hyphens ("sci fi", "rom com")', (
   const c = extractConstraints('a sci fi thriller');
   assert.deepEqual(c.requireGenres, ['Sci-Fi', 'Thriller']);
   const r = extractConstraints('a rom com with a feel good story');
-  assert.deepEqual(r.requireGenres, ['Romance']);
+  assert.deepEqual(r.requireGenres, ['Romance', 'Comedy']);
 });
 
 test('extractConstraints: "rom com" does not false-positive inside "from comedy"', () => {
   const c = extractConstraints('films from comedy directors');
   assert.deepEqual(c.requireGenres, ['Comedy']);
+});
+
+test('extractConstraints: common conversational mood words map to genres', () => {
+  assert.deepEqual(extractConstraints('something funny to watch tonight').requireGenres, ['Comedy']);
+  assert.deepEqual(extractConstraints('a scary movie for later').requireGenres, ['Horror']);
+  assert.deepEqual(extractConstraints('a sad film that will make me cry').requireGenres, ['Drama']);
+  assert.deepEqual(extractConstraints('a movie for date night').requireGenres, ['Romance']);
+  assert.deepEqual(extractConstraints('something for the kids').requireGenres, ['Family']);
+});
+
+test('extractConstraints: mood phrases prevent unconstrained generic fallback', () => {
+  assert.deepEqual(extractConstraints('a feel good comfort watch').requireGenres, ['Comedy']);
+  assert.deepEqual(extractConstraints('a mind bending puzzle movie').requireGenres, ['Sci-Fi', 'Thriller']);
+  assert.deepEqual(extractConstraints('a tense gripping story').requireGenres, ['Thriller']);
 });
 
 // ── Query language detection (locale-accurate recommendations) ──────────────
@@ -142,6 +159,35 @@ test('demoteGenresFor: demotes Animation unless the query asks for it', () => {
   assert.deepEqual(demoteGenresFor('a cartoon for the kids'), []);
 });
 
+test('demoteGenresFor: plain comedy downranks dark/crime/horror pollution', () => {
+  assert.deepEqual(demoteGenresFor('I fancy comedy tonight'), ['Animation', 'Crime', 'Thriller', 'Horror']);
+  assert.deepEqual(demoteGenresFor('dark comedy about crime'), ['Animation']);
+});
+
+test('closeTitleMatches: exact title searches do not cache loose matches', () => {
+  const out = closeTitleMatches(
+    [
+      { title: 'Colossal Squid' },
+      { title: 'Colossal' },
+      { title: 'The Colossal Failure' },
+    ],
+    'Colossal',
+  );
+  assert.deepEqual(out.map((p) => p.title), ['Colossal']);
+});
+
+test('closeTitleMatches: punctuation differences still count as exact and keep the best match', () => {
+  const out = closeTitleMatches(
+    [
+      { title: 'Pacific Rim: The Black', _vote_count: 10 },
+      { title: 'Pacific Rim The Black', _vote_count: 30 },
+      { title: 'Pacific Rim' },
+    ],
+    'Pacific Rim The Black',
+  );
+  assert.deepEqual(out.map((p) => p.title), ['Pacific Rim The Black']);
+});
+
 test('rankAndBadge: animation is demoted below live-action when not requested', () => {
   // Arcane has the higher rating; demoting Animation must still rank The Expanse first.
   const ranked = rankAndBadge([animatedSciFiShow, liveActionSciFiShow], 24, [], ['Animation']);
@@ -151,6 +197,48 @@ test('rankAndBadge: animation is demoted below live-action when not requested', 
 test('rankAndBadge: without an animation demote, higher-rated animation ranks first', () => {
   const ranked = rankAndBadge([animatedSciFiShow, liveActionSciFiShow], 24, [], []);
   assert.equal(ranked[0].title, 'Arcane', 'control: rating wins when nothing is demoted');
+});
+
+test('validatePicksForQuery: explicit country rejects clear mismatches but keeps unknown movie countries', () => {
+  const constraints = { originCountry: 'IN' };
+  const indian = { ...comedyShow, id: 'tmdb:10', title: 'Gullak', originCountry: ['IN'] };
+  const us = { ...comedyShow, id: 'tmdb:11', title: 'Friends', originCountry: ['US'] };
+  const unknown = { ...comedyShow, id: 'tmdb:12', title: 'Movie With Missing Country', kind: 'film', originCountry: [] };
+  const out = validatePicksForQuery([indian, us, unknown], 'Indian family shows', 'all', constraints);
+  assert.deepEqual(out.map((p) => p.title), ['Gullak', 'Movie With Missing Country']);
+});
+
+test('validatePicksForQuery: plain comedy removes off-tone genre pollution', () => {
+  const constraints = { requireGenres: ['Comedy'], plainComedy: true };
+  const crimeComedy = { ...comedyShow, id: 'tmdb:13', title: 'Crime Laughs', genres: ['Comedy', 'Crime'] };
+  const sitcom = { ...comedyShow, id: 'tmdb:14', title: 'Clean Sitcom', genres: ['Comedy'] };
+  const out = validatePicksForQuery([crimeComedy, sitcom], 'I fancy comedy today', 'all', constraints);
+  assert.deepEqual(out.map((p) => p.title), ['Clean Sitcom']);
+});
+
+test('validatePicksForQuery: exact TV requests do not keep films', () => {
+  const film = { ...sciFiThrillerFilm, id: 'tmdb:15', title: 'A Film' };
+  const show = { ...sciFiShow, id: 'tmdb:16', title: 'A Show' };
+  const out = validatePicksForQuery([film, show], 'Shows like Halt and Catch Fire', 'tv', {}, { exact: true });
+  assert.deepEqual(out.map((p) => p.title), ['A Show']);
+});
+
+test('validatePicksForQuery: sci-fi thriller rejects broad sci-fi/fantasy TV leakage', () => {
+  const constraints = extractConstraints('I feel like a sci-fi thriller');
+  const broadFantasy = {
+    ...sciFiShow,
+    id: 'tmdb:17',
+    title: 'Game of Thrones',
+    genres: ['Sci-Fi & Fantasy', 'Drama', 'Action & Adventure'],
+  };
+  const mysterySciFi = {
+    ...sciFiShow,
+    id: 'tmdb:18',
+    title: 'Severance',
+    genres: ['Drama', 'Mystery', 'Sci-Fi & Fantasy'],
+  };
+  const out = validatePicksForQuery([sciFiThrillerFilm, pureSciFiFilm, broadFantasy, mysterySciFi], 'I feel like a sci-fi thriller', 'all', constraints);
+  assert.deepEqual(out.map((p) => p.title), ['Minority Report', 'Severance']);
 });
 
 // ── isPlainQuery: fast-path detection ─────────────────────────────────────────
@@ -184,6 +272,13 @@ test('isPlainQuery: "a comedy" with prior present → false (refinement disables
 test('isPlainQuery: "something to watch tonight" (no constraints) → false (no genre/year)', () => {
   const c = extractConstraints('something to watch tonight');
   assert.equal(isPlainQuery('something to watch tonight', c, undefined), false);
+});
+
+test('isPlainQuery: conversational mood prompts can use the catalogue path', () => {
+  const funny = extractConstraints('something funny to watch tonight');
+  assert.equal(isPlainQuery('something funny to watch tonight', funny, undefined), true);
+  const scary = extractConstraints('a scary movie for later');
+  assert.equal(isPlainQuery('a scary movie for later', scary, undefined), true);
 });
 
 // ── searchKindFor: which TYPES to fetch (vs requestedKind = which tab to land on) ──
@@ -241,11 +336,15 @@ test('SPECIFIC_QUERY_RE: other specific markers are unaffected', () => {
   assert.equal(SPECIFIC_QUERY_RE.test('a movie about grief'), true);
   assert.equal(SPECIFIC_QUERY_RE.test('a thriller set in the UK'), true);
   assert.equal(SPECIFIC_QUERY_RE.test('directed by Nolan'), true);
+  assert.equal(SPECIFIC_QUERY_RE.test('تلسل بطولة عاد الإمام'), true);
+  assert.equal(SPECIFIC_QUERY_RE.test('في مستدلات عادة الإمام'), true);
 });
 
 test('SPECIFIC_QUERY_RE: plain genre/mood queries are not specific', () => {
   assert.equal(SPECIFIC_QUERY_RE.test('a feel good comedy'), false);
   assert.equal(SPECIFIC_QUERY_RE.test('tense thrillers'), false);
+  assert.equal(SPECIFIC_QUERY_RE.test('I feel like a sci-fi thriller'), false);
+  assert.equal(SPECIFIC_QUERY_RE.test('I would like a comedy'), false);
 });
 
 // The routing payoff: a genre query with co-viewing context now takes the
@@ -263,4 +362,14 @@ test('isPlainQuery: "a comedy with Tom Hanks" → false (named actor still route
 test('isPlainQuery: "a comedy like Inception" → false (comparison still specific)', () => {
   const c = extractConstraints('a comedy like Inception');
   assert.equal(isPlainQuery('a comedy like Inception', c, undefined), false);
+});
+
+test('isIncompleteQuery: content-free and truncated prompts return honest empty results', () => {
+  assert.equal(isIncompleteQuery('.', extractConstraints('.'), undefined), true);
+  assert.equal(isIncompleteQuery("Okay, I'm looking for a movie.", extractConstraints("Okay, I'm looking for a movie."), undefined), true);
+  assert.equal(isIncompleteQuery("Where there's a man with the.", extractConstraints("Where there's a man with the."), undefined), true);
+  assert.equal(isIncompleteQuery('في مستدلات عادة الإمام', extractConstraints('في مستدلات عادة الإمام'), undefined), true);
+  assert.equal(isIncompleteQuery('A film to watch with my mum', extractConstraints('A film to watch with my mum'), undefined), false);
+  assert.equal(isIncompleteQuery('تلسل بطولة عاد الإمام', extractConstraints('تلسل بطولة عاد الإمام'), undefined), false);
+  assert.equal(isIncompleteQuery('Anime', extractConstraints('Anime'), undefined), false);
 });

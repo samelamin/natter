@@ -10,6 +10,7 @@ import { recCacheKey, buildDonePayload } from '@/lib/recCache.js';
 const _recCache = new Map(); // key → { payload, expiresAt }
 const REC_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const REC_CACHE_MAX = 200;
+const REC_CACHE_PREFIX = 'natter:rec:v2:';
 
 function cacheGet(key) {
   const hit = _recCache.get(key);
@@ -82,7 +83,7 @@ export async function POST(request) {
   }
 
   // Lazy import to keep the import inside the async context (server only)
-  const { recommend } = await import('@/lib/agent.js');
+  const { recommend, SPECIFIC_QUERY_RE } = await import('@/lib/agent.js');
   const { getSessionUser, rateLimited } = await import('@/lib/auth.js');
   const { providersFromQuery } = await import('@/lib/providers.js');
   const { db, dbAvailable } = await import('@/lib/db.js');
@@ -132,7 +133,7 @@ export async function POST(request) {
   const filterActive = services.length > 0 || providersFromQuery(query).length > 0;
   // Bypass the whole-result cache when a per-user filter or refine context is
   // present — results would be incorrect or personalized.
-  const bypassCache = filterActive || !!prior || excludeIds.size > 0;
+  const bypassCache = filterActive || !!prior || excludeIds.size > 0 || SPECIFIC_QUERY_RE.test(query);
   const cacheKey = recCacheKey(query, kind);
 
   const encoder = new TextEncoder();
@@ -163,7 +164,7 @@ export async function POST(request) {
 
         // L2: check Redis when there's no L1 hit.
         if (!bypassCache) {
-          const l2 = await cacheGetJSON('natter:rec:v1:' + cacheKey);
+          const l2 = await cacheGetJSON(REC_CACHE_PREFIX + cacheKey);
           if (l2) {
             cached = true;
             picksCount = l2.picks?.length ?? 0;
@@ -191,7 +192,7 @@ export async function POST(request) {
         emit(done);
         if (!bypassCache && picksCount > 0) {
           cacheSet(cacheKey, done);
-          cacheSetJSON('natter:rec:v1:' + cacheKey, done, 21600);
+          cacheSetJSON(REC_CACHE_PREFIX + cacheKey, done, 21600);
         }
       } catch (err) {
         ok = false;

@@ -1,16 +1,16 @@
-/**
- * app/sitemap.js — Next.js metadata route (sitemap.(js|ts) convention).
- *
- * Minimal: only the home page is indexed. /s/* (noindexed shares) and
- * /title/* (no canonical enumerable source) are intentionally omitted.
- */
+import { SEARCH_PAGES, absoluteUrl } from '@/lib/seo.js';
+
 export default function sitemap() {
-  const base = process.env.SITE_ORIGIN || 'https://natter.cc';
   return [
     {
-      url: base + '/',
+      url: absoluteUrl('/'),
       changeFrequency: 'weekly',
       priority: 1,
     },
+    ...SEARCH_PAGES.map((page) => ({
+      url: absoluteUrl(`/watch/${page.slug}`),
+      changeFrequency: 'monthly',
+      priority: 0.82,
+    })),
   ];
 }
