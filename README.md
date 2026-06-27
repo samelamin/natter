@@ -1,9 +1,10 @@
 # Natter
 
-Voice-driven movie & TV recommendations. Say what you're in the mood for —
-Natter transcribes it, an LLM agent reasons over [TMDB](https://www.themoviedb.org/)
-(and optionally web search) to find titles, and streams back recommendations
-with rich detail.
+Voice-driven recommendations for **films, TV, books, games, and recipes**. Say
+what you're in the mood for — Natter transcribes it, an LLM agent reasons over
+the right catalogue for the domain, and streams back recommendations with rich
+detail. Pick a domain in the top bar, or just speak ("recommend a cosy mystery
+novel", "something to cook for dinner") and Natter routes to the right one.
 
 Built with Next.js (App Router) and React 19.
 
@@ -16,13 +17,30 @@ Built with Next.js (App Router) and React 19.
 4. **Recommend** — results stream back as NDJSON into the results screen; open a
    title for full detail.
 
+## Domains
+
+One voice flow, five content types. Each domain has its own data source, accent,
+and detail layout; the same transcribe → reason → stream pipeline drives them all.
+
+| Domain | Source | Key |
+| --- | --- | --- |
+| Films & TV | [TMDB](https://www.themoviedb.org/) | required (`TMDB_KEY`) |
+| Books | [Google Books](https://developers.google.com/books) | optional (keyless works) |
+| Games | [RAWG](https://rawg.io/apidocs) | free key recommended (falls back to web search) |
+| Recipes | [TheMealDB](https://www.themealdb.com/api.php) | keyless (`THEMEALDB_KEY=1`) |
+
+Films & TV keep the full feature set (watchlist, streaming-provider availability,
+Trakt sync, Stremio addon). Books / games / recipes support voice search, results,
+rich detail, search history, and sharing; watchlist save is films/TV-only for now.
+
 ## Stack
 
 - **Next.js 16 / React 19** — App Router, standalone output for Docker.
-- **TMDB** — catalogue and metadata.
+- **TMDB / Google Books / RAWG / TheMealDB** — per-domain catalogues via a
+  pluggable provider interface (`lib/providers/`).
 - **MiniMax M2** — the recommendation agent (OpenAI-compatible API).
 - **Groq (Whisper)** — speech-to-text, with OpenAI as an optional fallback.
-- **Brave Search** *(optional)* — supplementary web lookups.
+- **Brave Search** *(optional)* — supplementary web lookups + game fallback.
 
 ## Getting started
 
@@ -46,7 +64,11 @@ Open [http://localhost:3000](http://localhost:3000).
 | `OPENAI_API_KEY` | yes\* | Fallback transcription provider |
 | `MINIMAX_MODEL` | no | Agent model (default `MiniMax-M2`) |
 | `MINIMAX_BASE_URL` | no | Agent API base URL (default `https://api.minimax.io/v1`) |
-| `BRAVE_SEARCH_API_KEY` | no | Supplementary web search |
+| `BRAVE_SEARCH_API_KEY` | no | Supplementary web search + game fallback |
+| `GOOGLE_BOOKS_API_KEY` | no | Books — keyless works; key raises quota |
+| `RAWG_API_KEY` | no | Games — recommended; web-search fallback without it |
+| `THEMEALDB_KEY` | no | Recipes — defaults to the free test key `1` |
+| `REDIS_URL` | no | L2 cache for searches + provider responses |
 
 \* At least one of `GROQ_API_KEY` / `OPENAI_API_KEY` is needed for voice input.
 

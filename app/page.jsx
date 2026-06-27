@@ -16,7 +16,7 @@ import { ServicesModal } from '@/components/screens/ServicesModal.jsx';
 import { FeedbackModal } from '@/components/screens/FeedbackModal.jsx';
 import { useRecorder } from '@/lib/useRecorder.js';
 import { mergePinnedPicks } from '@/lib/pinPicks.js';
-import { DOMAIN_META } from '@/lib/providers/index.js';
+import { DOMAIN_META } from '@/lib/domains.js';
 
 const VALID_KINDS = new Set(['all', 'film', 'tv', 'book', 'game', 'recipe']);
 const IRIS_ACCENT = '#7C6CFF';
