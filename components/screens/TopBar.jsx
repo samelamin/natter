@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Logo, SegmentedToggle, IconButton, Avatar, Button } from '@/components/natter/index.jsx';
 import { Icons } from '@/components/natter/Icons.jsx';
 
+// Films & TV share one tab — the recommender returns both and you may be after
+// either. Books / Games / Recipes are their own (separate-API) domains.
 const KIND_OPTS = [
-  { value: 'all', label: 'Everything', icon: <Icons.layers /> },
-  { value: 'film', label: 'Films', icon: <Icons.film /> },
-  { value: 'tv', label: 'TV', icon: <Icons.tv /> },
+  { value: 'all', label: 'Films & TV', icon: <Icons.film /> },
   { value: 'book', label: 'Books', icon: <Icons.book /> },
   { value: 'game', label: 'Games', icon: <Icons.gamepad /> },
   { value: 'recipe', label: 'Recipes', icon: <Icons.chef /> },

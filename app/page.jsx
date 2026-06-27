@@ -22,6 +22,13 @@ const VALID_KINDS = new Set(['all', 'film', 'tv', 'book', 'game', 'recipe']);
 // Domains backed by their own (non-TMDB) APIs — a chosen tab here constrains the
 // search rather than acting as a display filter over the movie/TV pool.
 const NEW_DOMAIN_KINDS = new Set(['book', 'game', 'recipe']);
+
+// Films & TV share one 'Films & TV' tab (value 'all'). Collapse the agent's
+// film/tv landing onto 'all' so the selector stays highlighted on that tab;
+// book/game/recipe pass through unchanged.
+function selectorKind(k) {
+  return NEW_DOMAIN_KINDS.has(k) ? k : 'all';
+}
 const IRIS_ACCENT = '#7C6CFF';
 
 function isValidKind(k) {
@@ -315,9 +322,8 @@ export default function Page() {
             streamPinned = m.pinnedIds;
             setPicks(m.picks);
             setAppendedCount(m.appendedCount);
-            // Land on the tab the wording asked for — accepts all domains now
-            // (film | tv | book | game | recipe). Unknown values fall back to 'all'.
-            setKind(isValidKind(event.kind) ? event.kind : 'all');
+            // Land on the right tab; film/tv collapse onto the combined 'all'.
+            setKind(selectorKind(event.kind));
             setScreen('results');
             setFinishing(true);
             if (event.phase === 'deepening') setDeepening(true);
@@ -329,10 +335,9 @@ export default function Page() {
             streamPinned = m.pinnedIds;
             setPicks(m.picks);
             setAppendedCount(m.appendedCount);
-            // Land on the tab the wording asked for ("a comedy movie" → Films);
-            // for book/game/recipe the classifier switches kinds. The auto-switch
-            // path sets `switched: true` on the event and we surface a toast.
-            const landedKind = isValidKind(event.kind) ? event.kind : 'all';
+            // film/tv collapse onto the combined 'all' tab; book/game/recipe
+            // pass through. The 'Everything' auto-switch surfaces a toast.
+            const landedKind = selectorKind(event.kind);
             setKind(landedKind);
             if (event.switched) {
               const label = (DOMAIN_META[landedKind] && DOMAIN_META[landedKind].label) || landedKind;
@@ -510,8 +515,8 @@ export default function Page() {
       // Pre-select the kind (defaults to 'all') before running the search so
       // the chips, hero copy, and accent reflect the recipient's link context.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (isValidKind(k) && k !== 'all') setKind(k);
-      runSearch(q.trim(), isValidKind(k) ? k : undefined);
+      if (isValidKind(k)) setKind(selectorKind(k));
+      runSearch(q.trim(), isValidKind(k) ? selectorKind(k) : undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -561,7 +566,7 @@ export default function Page() {
     history.pushState({ n: 'app' }, '', '');
     setActiveQuery(entry.query || '');
     setIntent(entry.intent || '');
-    setKind(isValidKind(entry.kind) ? entry.kind : 'all');
+    setKind(selectorKind(entry.kind));
     setPicks(Array.isArray(entry.picks) ? entry.picks : []);
     setError(null);
     setResultProviders([]);
