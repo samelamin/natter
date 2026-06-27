@@ -1,6 +1,9 @@
 import { logUsage } from '@/lib/usage.js';
 import { cacheGetJSON, cacheSetJSON } from '@/lib/cache.js';
 import { recCacheKey, buildDonePayload } from '@/lib/recCache.js';
+import { classifyDomain } from '@/lib/domainClassify.js';
+import { NEW_DOMAINS } from '@/lib/providers/index.js';
+import { domainRecommend } from '@/lib/domainRecommend.js';
 
 // ── Whole-result cache ───────────────────────────────────────────────────────
 // A search costs an LLM loop + web search + dozens of TMDB calls and takes
@@ -88,6 +91,11 @@ export async function POST(request) {
   const { providersFromQuery } = await import('@/lib/providers.js');
   const { db, dbAvailable } = await import('@/lib/db.js');
 
+  // Route query → final kind via classifier (verb/noun signals).
+  // Classifier MAY change kind away from selectedKind (kind=film + "sci-fi novel" → book).
+  const routed = classifyDomain(query, kind);
+  const finalKind = routed.domain;
+
   // Each search fans out to LLM rounds + web search + TMDB — cap per IP.
   const ip =
     request.headers.get('cf-connecting-ip') ||
@@ -134,7 +142,7 @@ export async function POST(request) {
   // Bypass the whole-result cache when a per-user filter or refine context is
   // present — results would be incorrect or personalized.
   const bypassCache = filterActive || !!prior || excludeIds.size > 0 || SPECIFIC_QUERY_RE.test(query);
-  const cacheKey = recCacheKey(query, kind);
+  const cacheKey = recCacheKey(query, finalKind);
 
   const encoder = new TextEncoder();
 
@@ -175,24 +183,49 @@ export async function POST(request) {
           }
         }
 
-        const result = await recommend({
-          query,
-          kind,
-          services,
-          prior,
-          excludeIds,
-          onStep: (label) => emit({ type: 'step', label }),
-          onCandidates: (items) => emit({ type: 'candidates', items }),
-          onPartial: ({ kind: k, intent, picks, phase }) => emit({ type: 'partial', kind: k, intent, picks, phase }),
-        });
+        let result;
+        if (NEW_DOMAINS.includes(finalKind)) {
+          // New domain engine: book / game / recipe. No streaming-provider hydration,
+          // no Trakt availability — those are movie-only concerns.
+          result = await domainRecommend({
+            query,
+            domain: finalKind,
+            excludeIds,
+            onStep: (label) => emit({ type: 'step', label }),
+            onCandidates: (items) => emit({ type: 'candidates', items }),
+            onPartial: ({ kind: k, intent, picks, phase }) => emit({ type: 'partial', kind: k, intent, picks, phase }),
+          });
 
-        picksCount = result.picks?.length ?? 0;
-        lang = result.lang ?? null;
-        const done = buildDonePayload(query, result);
-        emit(done);
-        if (!bypassCache && picksCount > 0) {
-          cacheSet(cacheKey, done);
-          cacheSetJSON(REC_CACHE_PREFIX + cacheKey, done, 21600);
+          picksCount = result.picks?.length ?? 0;
+          lang = result.lang ?? null;
+          const done = buildDonePayload(query, result);
+          if (routed.switched) done.switched = routed.from;
+          emit(done);
+          if (!bypassCache && picksCount > 0) {
+            cacheSet(cacheKey, done);
+            cacheSetJSON(REC_CACHE_PREFIX + cacheKey, done, 21600);
+          }
+        } else {
+          result = await recommend({
+            query,
+            kind: finalKind,
+            services,
+            prior,
+            excludeIds,
+            onStep: (label) => emit({ type: 'step', label }),
+            onCandidates: (items) => emit({ type: 'candidates', items }),
+            onPartial: ({ kind: k, intent, picks, phase }) => emit({ type: 'partial', kind: k, intent, picks, phase }),
+          });
+
+          picksCount = result.picks?.length ?? 0;
+          lang = result.lang ?? null;
+          const done = buildDonePayload(query, result);
+          if (routed.switched) done.switched = routed.from;
+          emit(done);
+          if (!bypassCache && picksCount > 0) {
+            cacheSet(cacheKey, done);
+            cacheSetJSON(REC_CACHE_PREFIX + cacheKey, done, 21600);
+          }
         }
       } catch (err) {
         ok = false;
