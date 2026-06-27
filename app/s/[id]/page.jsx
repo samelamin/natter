@@ -8,6 +8,19 @@ import { resizeImagePath } from '@/lib/share.js';
 // Validate share IDs to prevent injection / spurious DB hits.
 const ID_RE = /^[0-9A-Za-z]{12}$/;
 
+const NEW_KINDS = new Set(['book', 'game', 'recipe']);
+const NOUN = { all: 'film & TV', film: 'film & TV', tv: 'film & TV', book: 'book', game: 'game', recipe: 'recipe' };
+function nounFor(kind) {
+  return NOUN[kind] || 'great';
+}
+/** Link for a pick: film/TV → the rich /title page; new domains → a search that resurfaces it. */
+function hrefFor(pick, setKind, query) {
+  if (pick.tmdbId && (pick.kind === 'film' || pick.kind === 'tv')) {
+    return `/title/${pick.kind}/${pick.tmdbId}`;
+  }
+  return `/?kind=${pick.domain || setKind}&q=${encodeURIComponent(query)}`;
+}
+
 async function loadSet(id) {
   if (!ID_RE.test(id)) return null;
   if (!dbAvailable()) return null;
@@ -39,12 +52,14 @@ export async function generateMetadata({ params }) {
 
   const { query, intent, picks } = set;
   const title = `${picks.length} picks for "${query}" — Natter`;
-  const description = intent || `A set of ${picks.length} film & TV picks, chosen by Natter.`;
+  const description = intent || `A set of ${picks.length} ${nounFor(set.kind)} picks, chosen by Natter.`;
   const url = `/s/${id}`;
-  // Lead pick's poster JPEG as the preview card (a composed multi-poster PNG
-  // from next/og lands well over WhatsApp's ~600KB cap and gets dropped —
-  // the landing page itself carries the full grid). metadataBase → absolute.
-  const ogImage = resizeImagePath(picks.find((p) => p.poster)?.poster, 'w500');
+  // Lead pick's image as the preview card (a composed multi-poster PNG from
+  // next/og lands well over WhatsApp's ~600KB cap and gets dropped — the
+  // landing page itself carries the full grid). TMDB posters get resized via
+  // the proxy; new-domain covers are already absolute external URLs.
+  const lead = picks.find((p) => p.poster) || picks.find((p) => p.image);
+  const ogImage = lead?.poster ? resizeImagePath(lead.poster, 'w500') : (lead?.image || null);
 
   return {
     title,
@@ -88,15 +103,16 @@ export default async function ShareSetPage({ params }) {
 
         <div className="poster-grid">
           {picks.map((pick) => {
-            const href = `/title/${pick.kind}/${pick.tmdbId}`;
+            const href = hrefFor(pick, set.kind, query);
+            const img = pick.poster || pick.image;
             return (
-              <Link key={`${pick.kind}-${pick.tmdbId}`} href={href} style={{ textDecoration: 'none', color: 'inherit' }}>
+              <Link key={pick.id || `${pick.kind}-${pick.tmdbId}`} href={href} style={{ textDecoration: 'none', color: 'inherit' }}>
                 <div className="nat-poster">
                   <div className="nat-poster__art">
-                    {pick.poster ? (
+                    {img ? (
                       <span className="nat-img is-loaded">
                         <img
-                          src={pick.poster}
+                          src={img}
                           alt={pick.title}
                           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                         />
@@ -114,8 +130,8 @@ export default async function ShareSetPage({ params }) {
                   </div>
                   <div className="nat-poster__body">
                     <div className="nat-poster__title">{pick.title}</div>
-                    {pick.year && (
-                      <div className="nat-poster__on">{pick.year}</div>
+                    {(pick.subtitle || pick.year) && (
+                      <div className="nat-poster__on">{pick.subtitle || pick.year}</div>
                     )}
                   </div>
                 </div>
@@ -125,11 +141,11 @@ export default async function ShareSetPage({ params }) {
         </div>
 
         <p style={{ color: 'var(--text-lo)', fontSize: 'var(--text-sm)', margin: 0 }}>
-          Tell Natter what you&apos;re in the mood for — it finds the right films &amp; TV in seconds.
+          Tell Natter what you&apos;re in the mood for — films, TV, books, games &amp; recipes, in seconds.
         </p>
 
         <div className="title-cta">
-          <Button as="a" href={'/?q=' + encodeURIComponent(query)} variant="brand" size="lg">
+          <Button as="a" href={`/?kind=${set.kind}&q=${encodeURIComponent(query)}`} variant="brand" size="lg">
             Get my own picks
           </Button>
           <Link href="/" className="title-cta__secondary">Open Natter</Link>

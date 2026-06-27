@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og';
 
 // Open Graph / social-share image for the site root.
 // Next emits og:image + og:image:width/height; the twitter card falls back to it.
-export const alt = 'Natter — Voice-first film & TV recommendations';
+export const alt = 'Natter — Voice-first recommendations for films, TV, books, games & recipes';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -57,8 +57,8 @@ export default function OpengraphImage() {
           </div>
         </div>
         {/* Tagline */}
-        <div style={{ marginTop: 34, fontSize: 40, color: '#B6B5CC', maxWidth: 880, textAlign: 'center' }}>
-          Describe what you want to watch — get real films &amp; TV, instantly.
+        <div style={{ marginTop: 34, fontSize: 40, color: '#B6B5CC', maxWidth: 920, textAlign: 'center' }}>
+          Say what you&apos;re in the mood for — films, TV, books, games &amp; recipes.
         </div>
       </div>
     ),
