@@ -6,6 +6,15 @@ import { NEW_DOMAINS } from '@/lib/providers/index.js';
 import { domainRecommend } from '@/lib/domainRecommend.js';
 import { platformIdsFor } from '@/lib/providers/games.js';
 
+// Human labels for the LLM game prompt (so it suggests platform-appropriate titles).
+const PLATFORM_LABELS = {
+  pc: 'PC',
+  playstation: 'PlayStation',
+  xbox: 'Xbox',
+  switch: 'Nintendo Switch',
+  mobile: 'mobile (iOS/Android)',
+};
+
 // ── Whole-result cache ───────────────────────────────────────────────────────
 // A search costs an LLM loop + web search + dozens of TMDB calls and takes
 // 20–45s; identical queries (suggestion chips!) should be instant. ONLY
@@ -203,6 +212,7 @@ export async function POST(request) {
             domain: finalKind,
             excludeIds,
             platforms: finalKind === 'game' ? platformIdsFor(platformKeys) : [],
+            platformLabels: finalKind === 'game' ? platformKeys.map((k) => PLATFORM_LABELS[k] || k) : [],
             onStep: (label) => emit({ type: 'step', label }),
             onCandidates: (items) => emit({ type: 'candidates', items }),
             onPartial: ({ kind: k, intent, picks, phase }) => emit({ type: 'partial', kind: k, intent, picks, phase }),
