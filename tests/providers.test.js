@@ -329,9 +329,38 @@ test('books.getDetails: returns a normalized pick for the volumeId', async () =>
   assert.equal(p.meta.pageCount, 352);
 });
 
-test('books.search: throws on non-ok upstream', async () => {
-  mockJsonResponse(/volumes/, {}, { status: 500 });
-  await assert.rejects(books.search({ query: 'foo' }), /books 500/);
+test('books.search: falls back to OpenLibrary when Google Books fails', async () => {
+  // Google Books keyless quota 429s on cloud IPs — books.search must fall back
+  // to OpenLibrary (keyless, no quota) rather than throw.
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('googleapis.com')) return { ok: false, status: 429, json: async () => ({}) };
+    if (u.includes('openlibrary.org')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          docs: [{
+            key: '/works/OL1W', title: 'Fallback Book', author_name: ['A. Writer'],
+            first_publish_year: 1999, cover_i: 123, subject: ['Fiction'],
+          }],
+        }),
+      };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+  const out = await books.search({ query: 'foo' });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].id, 'book:OL1W');
+  assert.equal(out[0].title, 'Fallback Book');
+  assert.equal(out[0].subtitle, 'A. Writer');
+  assert.equal(out[0].image, 'https://covers.openlibrary.org/b/id/123-L.jpg');
+});
+
+test('books.search: returns [] when both Google and OpenLibrary fail', async () => {
+  mockJsonResponse(/./, {}, { status: 500 });
+  const out = await books.search({ query: 'foo' });
+  assert.deepEqual(out, []);
 });
 
 // ── games.normalizeToPick ───────────────────────────────────────────────────
