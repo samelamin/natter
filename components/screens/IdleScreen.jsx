@@ -145,7 +145,7 @@ export function IdleScreen({ kind = 'all', query, setQuery, onSend, micState, on
               ))}
             </div>
           )}
-          {trendingChips.length >= 3 && (() => {
+          {kind === 'all' && trendingChips.length >= 3 && (() => {
             const staticLower = new Set([...chips, ...recents].map((s) => s.toLowerCase()));
             const filtered = trendingChips.filter((c) => !staticLower.has(c.toLowerCase()));
             return filtered.length >= 3 ? (
