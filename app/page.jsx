@@ -19,6 +19,9 @@ import { mergePinnedPicks } from '@/lib/pinPicks.js';
 import { DOMAIN_META } from '@/lib/domains.js';
 
 const VALID_KINDS = new Set(['all', 'film', 'tv', 'book', 'game', 'recipe']);
+// Domains backed by their own (non-TMDB) APIs — a chosen tab here constrains the
+// search rather than acting as a display filter over the movie/TV pool.
+const NEW_DOMAIN_KINDS = new Set(['book', 'game', 'recipe']);
 const IRIS_ACCENT = '#7C6CFF';
 
 function isValidKind(k) {
@@ -72,6 +75,10 @@ export default function Page() {
   // new search aborts the previous stream so it can't clobber fresh results.
   const searchSeqRef = useRef(0);
   const abortRef = useRef(null);
+  // Mirror of `kind` for runSearch (a useCallback) to read the live tab without
+  // re-creating the callback on every toggle.
+  const kindRef = useRef('all');
+  useEffect(() => { kindRef.current = kind; }, [kind]);
   // A signed-out "+ watchlist" tap remembers the pick and completes the save
   // right after sign-up/sign-in.
   const pendingSaveRef = useRef(null);
@@ -242,10 +249,12 @@ export default function Page() {
     async (text, kindArg, opts) => {
       const q = (typeof text === 'string' ? text : query).trim();
       if (!q) return;
-      // A fresh search always fetches the full pool — the TopBar toggle is a
-      // display filter for the CURRENT results. Reusing it here silently
-      // narrowed the next fetch (films vanished after picking TV).
-      const effectiveKind = kindArg ?? 'all';
+      // For film/tv the TopBar toggle is a DISPLAY filter — a fresh search
+      // fetches the full 'all' pool so films don't vanish after picking TV.
+      // But books/games/recipes come from separate APIs that can't be filtered
+      // out of a movie pool, so a chosen new-domain tab must CONSTRAIN the fetch.
+      const cur = kindRef.current;
+      const effectiveKind = kindArg ?? (NEW_DOMAIN_KINDS.has(cur) ? cur : 'all');
 
       const seq = ++searchSeqRef.current;
       abortRef.current?.abort();
@@ -674,7 +683,18 @@ export default function Page() {
       <TopBar
         onHome={goHome}
         kind={kind}
-        setKind={setKind}
+        setKind={(k) => {
+          setKind(k);
+          // film/tv/all stay a display filter over the current pool. Crossing a
+          // new-domain boundary (book/game/recipe) needs a fresh search — those
+          // come from separate APIs and can't be filtered out of movie results.
+          if (
+            screen === 'results' && activeQuery &&
+            (NEW_DOMAIN_KINDS.has(k) || NEW_DOMAIN_KINDS.has(kind))
+          ) {
+            runSearch(activeQuery, k);
+          }
+        }}
         showFilter={screen === 'idle' || screen === 'results'}
         user={user}
         onSignIn={() => setAuthOpen('signin')}

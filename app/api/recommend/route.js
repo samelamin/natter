@@ -91,9 +91,14 @@ export async function POST(request) {
   const { providersFromQuery } = await import('@/lib/providers.js');
   const { db, dbAvailable } = await import('@/lib/db.js');
 
-  // Route query → final kind via classifier (verb/noun signals).
-  // Classifier MAY change kind away from selectedKind (kind=film + "sci-fi novel" → book).
-  const routed = classifyDomain(query, kind);
+  // Tab is authoritative: when the user explicitly picks a domain (Films / TV /
+  // Books / Games / Recipes), that domain is used as-is. Only the 'Everything'
+  // tab auto-detects the domain from the wording (e.g. "a sci-fi novel" → book).
+  // This keeps the cross-API domains (which can't be display-filtered from one
+  // pool) cleanly separated.
+  const routed = kind === 'all'
+    ? classifyDomain(query, kind)
+    : { domain: kind, switched: false, from: kind };
   const finalKind = routed.domain;
 
   // Each search fans out to LLM rounds + web search + TMDB — cap per IP.
