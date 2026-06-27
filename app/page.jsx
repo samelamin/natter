@@ -16,6 +16,28 @@ import { ServicesModal } from '@/components/screens/ServicesModal.jsx';
 import { FeedbackModal } from '@/components/screens/FeedbackModal.jsx';
 import { useRecorder } from '@/lib/useRecorder.js';
 import { mergePinnedPicks } from '@/lib/pinPicks.js';
+import { DOMAIN_META } from '@/lib/providers/index.js';
+
+const VALID_KINDS = new Set(['all', 'film', 'tv', 'book', 'game', 'recipe']);
+const IRIS_ACCENT = '#7C6CFF';
+
+function isValidKind(k) {
+  return typeof k === 'string' && VALID_KINDS.has(k);
+}
+
+function accentForKind(kind) {
+  // DOMAIN_META.film/tv both use the iris accent; everything else falls back
+  // to the brand default so the result view never looks unstyled.
+  if (isValidKind(kind) && DOMAIN_META[kind]) return DOMAIN_META[kind].accent;
+  return IRIS_ACCENT;
+}
+
+const DEFAULT_PAGE_STATE = { all: 1, film: 1, tv: 1, book: 1, game: 1, recipe: 1 };
+function withKind(pageState, kind, page) {
+  // Always remembers a slot for the active kind so the toggle lands on a
+  // sensible page after switching tabs.
+  return { ...pageState, [kind]: page };
+}
 
 export default function Page() {
   const [screen, setScreen] = useState('idle'); // idle | listening | working | results | watchlist
@@ -31,7 +53,7 @@ export default function Page() {
   const [intent, setIntent] = useState('');
   const [appendedCount, setAppendedCount] = useState(0);
   // Per-tab current page (reset on a new search, preserved across tab switches).
-  const [pageState, setPageState] = useState({ all: 1, film: 1, tv: 1 });
+  const [pageState, setPageState] = useState(DEFAULT_PAGE_STATE);
   // True while deeper pages are still streaming in — drives the "of N+" hint.
   const [deepening, setDeepening] = useState(false);
 
@@ -212,7 +234,7 @@ export default function Page() {
     setFinishing(false);
     setIntent('');
     setAppendedCount(0);
-    setPageState({ all: 1, film: 1, tv: 1 });
+    setPageState(DEFAULT_PAGE_STATE);
     setDeepening(false);
   }, []);
 
@@ -242,7 +264,7 @@ export default function Page() {
       setFinishing(false);
       setIntent('');
       setAppendedCount(0);
-      setPageState({ all: 1, film: 1, tv: 1 });
+      setPageState(DEFAULT_PAGE_STATE);
       setDeepening(false);
 
       // Push a history entry so back works
@@ -284,8 +306,9 @@ export default function Page() {
             streamPinned = m.pinnedIds;
             setPicks(m.picks);
             setAppendedCount(m.appendedCount);
-            // Land on the tab the wording asked for — same logic as 'done'
-            setKind(event.kind === 'film' || event.kind === 'tv' ? event.kind : 'all');
+            // Land on the tab the wording asked for — accepts all domains now
+            // (film | tv | book | game | recipe). Unknown values fall back to 'all'.
+            setKind(isValidKind(event.kind) ? event.kind : 'all');
             setScreen('results');
             setFinishing(true);
             if (event.phase === 'deepening') setDeepening(true);
@@ -298,8 +321,14 @@ export default function Page() {
             setPicks(m.picks);
             setAppendedCount(m.appendedCount);
             // Land on the tab the wording asked for ("a comedy movie" → Films);
-            // the other tab is stocked with the same genre, one tap away.
-            setKind(event.kind === 'film' || event.kind === 'tv' ? event.kind : 'all');
+            // for book/game/recipe the classifier switches kinds. The auto-switch
+            // path sets `switched: true` on the event and we surface a toast.
+            const landedKind = isValidKind(event.kind) ? event.kind : 'all';
+            setKind(landedKind);
+            if (event.switched) {
+              const label = (DOMAIN_META[landedKind] && DOMAIN_META[landedKind].label) || landedKind;
+              showToast(`Switched to ${label}`);
+            }
             setResultProviders(Array.isArray(event.providers) ? event.providers : []);
             setScreen('results');
             setFinishing(false);
@@ -464,11 +493,16 @@ export default function Page() {
   useEffect(() => {
     if (deepLinkFiredRef.current) return;
     deepLinkFiredRef.current = true;
-    const q = new URLSearchParams(window.location.search).get('q');
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    const k = params.get('kind');
     if (q && q.trim()) {
       history.replaceState(null, '', '/');
+      // Pre-select the kind (defaults to 'all') before running the search so
+      // the chips, hero copy, and accent reflect the recipient's link context.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      runSearch(q.trim());
+      if (isValidKind(k) && k !== 'all') setKind(k);
+      runSearch(q.trim(), isValidKind(k) ? k : undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -518,13 +552,13 @@ export default function Page() {
     history.pushState({ n: 'app' }, '', '');
     setActiveQuery(entry.query || '');
     setIntent(entry.intent || '');
-    setKind(entry.kind === 'film' || entry.kind === 'tv' ? entry.kind : 'all');
+    setKind(isValidKind(entry.kind) ? entry.kind : 'all');
     setPicks(Array.isArray(entry.picks) ? entry.picks : []);
     setError(null);
     setResultProviders([]);
     setFinishing(false);
     setAppendedCount(0);
-    setPageState({ all: 1, film: 1, tv: 1 });
+    setPageState(DEFAULT_PAGE_STATE);
     setDeepening(false);
     setScreen('results');
   }, []);
@@ -539,10 +573,18 @@ export default function Page() {
   );
 
   // Share the CURRENTLY VISIBLE picks as a snapshot link (/s/<id>). Mirrors
-  // ShareButton's native-sheet-then-clipboard behavior.
+  // ShareButton's native-sheet-then-clipboard behavior. For film/tv we
+  // additionally narrow to that kind so a mixed-pick set never mixes
+  // providers across domains in one share.
   const shareSet = useCallback(async () => {
-    const visible =
-      kind === 'film' || kind === 'tv' ? displayPicks.filter((p) => p.kind === kind) : displayPicks;
+    let visible;
+    if (kind === 'film' || kind === 'tv') {
+      visible = displayPicks.filter((p) => p.kind === kind);
+    } else if (kind === 'book' || kind === 'game' || kind === 'recipe') {
+      visible = displayPicks.filter((p) => p.domain === kind);
+    } else {
+      visible = displayPicks;
+    }
     const p = visible.slice(0, 8);
     if (p.length === 0) return;
     let url;
@@ -619,12 +661,21 @@ export default function Page() {
   );
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      style={{
+        // Per-domain accent — overrides --accent on the app root so buttons,
+        // badges, and accents throughout the result view pick up the active
+        // domain's color without touching every component.
+        '--accent': accentForKind(kind),
+        '--accent-domain': accentForKind(kind),
+      }}
+    >
       <TopBar
         onHome={goHome}
         kind={kind}
         setKind={setKind}
-        showFilter={screen === 'results'}
+        showFilter={screen === 'idle' || screen === 'results'}
         user={user}
         onSignIn={() => setAuthOpen('signin')}
         onWatchlist={openWatchlist}
@@ -647,6 +698,7 @@ export default function Page() {
         {screen === 'idle' && (
           <>
             <IdleScreen
+              kind={kind}
               query={query}
               setQuery={setQuery}
               onSend={runSearch}
@@ -683,7 +735,7 @@ export default function Page() {
             intent={intent}
             appendedCount={appendedCount}
             page={pageState[kind] || 1}
-            onPageChange={(p) => setPageState((s) => ({ ...s, [kind]: p }))}
+            onPageChange={(p) => setPageState((s) => withKind(s, kind, p))}
             deepening={deepening}
           />
         )}

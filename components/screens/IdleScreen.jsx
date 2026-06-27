@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PromptBar, Tag } from '@/components/natter/index.jsx';
 import { Icons } from '@/components/natter/Icons.jsx';
-import { POOL } from '@/lib/suggestionPool.js';
+import { POOL, POOL_BY_DOMAIN } from '@/lib/suggestionPool.js';
 
 function pickFive(pool) {
   const arr = [...pool];
@@ -14,9 +14,48 @@ function pickFive(pool) {
   return arr.slice(0, 5);
 }
 
-export function IdleScreen({ query, setQuery, onSend, micState, onMic, onFeedback }) {
-  // Hydration-stable: start with first 5, randomise after mount
-  const [chips, setChips] = useState(POOL.slice(0, 5));
+// Per-domain hero copy + prompt placeholder. `all` keeps the original
+// "movie night" wording; new domains get their own eyebrow/title/placeholder.
+const COPY = {
+  all: {
+    eyebrow: 'Movie night, sorted',
+    title: ['What are you', { br: true }, 'in the ', { em: 'mood' }, ' for?'],
+    placeholder: 'Tell me what you fancy…',
+  },
+  film: {
+    eyebrow: 'Movie night, sorted',
+    title: ['What are you', { br: true }, 'in the ', { em: 'mood' }, ' for?'],
+    placeholder: 'Tell me what you fancy…',
+  },
+  tv: {
+    eyebrow: 'Your next binge',
+    title: ['What do you', { br: true }, 'want to ', { em: 'watch' }, '?'],
+    placeholder: 'Tell me what you want to watch…',
+  },
+  book: {
+    eyebrow: 'Your next great read',
+    title: ['What do you', { br: true }, 'want to ', { em: 'read' }, '?'],
+    placeholder: 'Tell me what you want to read…',
+  },
+  game: {
+    eyebrow: 'Your next obsession',
+    title: ['What do you', { br: true }, 'want to ', { em: 'play' }, '?'],
+    placeholder: 'Tell me what you want to play…',
+  },
+  recipe: {
+    eyebrow: "What's for dinner?",
+    title: ['What do you', { br: true }, 'want to ', { em: 'cook' }, '?'],
+    placeholder: "Tell me what you're craving…",
+  },
+};
+
+function poolForKind(kind) {
+  return POOL_BY_DOMAIN[kind] || POOL;
+}
+
+export function IdleScreen({ kind = 'all', query, setQuery, onSend, micState, onMic, onFeedback }) {
+  // Hydration-stable: start with first 5 of the active pool, randomise after mount.
+  const [chips, setChips] = useState(poolForKind(kind).slice(0, 5));
   // Recent searches — empty until useEffect runs (hydration safety)
   const [recents, setRecents] = useState([]);
   // Trending chips from /api/suggestions — empty until fetched
@@ -24,8 +63,8 @@ export function IdleScreen({ query, setQuery, onSend, micState, onMic, onFeedbac
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setChips(pickFive(POOL));
-  }, []);
+    setChips(pickFive(poolForKind(kind)));
+  }, [kind]);
 
   useEffect(() => {
     try {
@@ -51,21 +90,26 @@ export function IdleScreen({ query, setQuery, onSend, micState, onMic, onFeedbac
       .catch(() => {});
   }, []);
 
+  const copy = COPY[kind] || COPY.all;
+
   return (
     <div className="fade-up">
       <div className="hero">
-        <span className="eyebrow">Movie night, sorted</span>
+        <span className="eyebrow">{copy.eyebrow}</span>
         <h1>
-          What are you
-          <br />
-          in the <em>mood</em> for?
+          {copy.title.map((part, i) => {
+            if (typeof part === 'string') return <span key={i}>{part}</span>;
+            if (part.br) return <br key={i} />;
+            if (part.em) return <em key={i}>{part.em}</em>;
+            return null;
+          })}
         </h1>
         <div className="hero__prompt">
           <PromptBar
             value={query}
             onChange={setQuery}
             onSend={onSend}
-            placeholder="Tell me what you fancy…"
+            placeholder={copy.placeholder}
             micState={micState}
             onMic={onMic}
           />
@@ -105,7 +149,7 @@ export function IdleScreen({ query, setQuery, onSend, micState, onMic, onFeedbac
             ))}
           </div>
           <div className="hero__hint">
-            <Icons.mic /> Say it or type it — a vibe, an actor, a half-remembered plot.
+            <Icons.mic /> Say it or type it — a vibe, an author, a half-remembered plot.
           </div>
           {onFeedback && (
             <button className="feedback-entry" type="button" onClick={onFeedback}>

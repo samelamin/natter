@@ -8,6 +8,9 @@ const KIND_OPTS = [
   { value: 'all', label: 'Everything', icon: <Icons.layers /> },
   { value: 'film', label: 'Films', icon: <Icons.film /> },
   { value: 'tv', label: 'TV', icon: <Icons.tv /> },
+  { value: 'book', label: 'Books', icon: <Icons.book /> },
+  { value: 'game', label: 'Games', icon: <Icons.gamepad /> },
+  { value: 'recipe', label: 'Recipes', icon: <Icons.chef /> },
 ];
 
 const menuStyle = {

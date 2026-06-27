@@ -246,7 +246,10 @@ export function MatchScore({ value }) {
 // ── Cinematic backdrop ────────────────────────────────────────────────────
 export function Backdrop({ item, className = '', children, style }) {
   const h = hueFrom(item.title);
-  const imgSrc = item.backdropSrc || item.background || item.posterSrc || item.poster;
+  // New domains (book/game/recipe) carry their image in `image` (no TMDB
+  // backdrop/poster). The chain prefers the richer backdrop, then falls back
+  // to a poster, then to whatever the new providers ship.
+  const imgSrc = item.backdropSrc || item.background || item.posterSrc || item.poster || item.image;
   return (
     <div className={`bd ${className}`} style={{ '--h': h, '--h2': (h + 38) % 360, ...style }}>
       {imgSrc
@@ -384,7 +387,54 @@ export function EpisodeList({ item, episodes = [] }) {
 }
 
 // ── Results billboard ─────────────────────────────────────────────────────
+// `isNewDomain` = true for book / game / recipe picks. Those renders use
+// subtitle + domain meta + the domain verb ("View book", "View game", ...)
+// and skip the streaming-provider and watchlist affordances — watchlist is
+// TMDB-only in v1.
+function isNewDomain(item) {
+  return item && (item.domain === 'book' || item.domain === 'game' || item.domain === 'recipe');
+}
+
+const NEW_DOMAIN_LABEL = { book: 'Book', game: 'Game', recipe: 'Recipe' };
+const NEW_DOMAIN_VERB = { book: 'book', game: 'game', recipe: 'recipe' };
+
+function newDomainMeta(item) {
+  if (!item) return [];
+  const meta = item.meta || {};
+  const out = [];
+  if (item.domain === 'book') {
+    if (meta.pageCount) out.push(<span key="p">{meta.pageCount} pages</span>);
+    if (item.year) out.push(<span key="y">{item.year}</span>);
+  } else if (item.domain === 'game') {
+    const plats = Array.isArray(meta.platforms) ? meta.platforms.slice(0, 2) : [];
+    if (plats.length) out.push(<span key="pl">{plats.join(' · ')}</span>);
+    if (item.year) out.push(<span key="y">{item.year}</span>);
+    if (typeof meta.metacritic === 'number' && meta.metacritic > 0) {
+      out.push(
+        <span key="mc" className="nat-meta--cert" title="Metacritic">{meta.metacritic}</span>,
+      );
+    }
+  } else if (item.domain === 'recipe') {
+    if (meta.category) out.push(<span key="cat">{meta.category}</span>);
+    if (meta.area) out.push(<span key="area">{meta.area}</span>);
+  }
+  return out;
+}
+
+function billboardImageSrc(item) {
+  if (!item) return null;
+  return item.posterSrc || item.poster || item.image || null;
+}
+
+function posterImageSrc(item) {
+  if (!item) return null;
+  return item.posterSrc || item.poster || item.image || null;
+}
+
 export function Billboard({ item, onPlay, onDetails, onAdd }) {
+  const newDom = isNewDomain(item);
+  const imgSrc = billboardImageSrc(item);
+  // Backdrop relies on hueFrom(item.title); that's safe across domains.
   return (
     <Backdrop item={item} className="billboard">
       <div className="billboard__content">
@@ -393,13 +443,24 @@ export function Billboard({ item, onPlay, onDetails, onAdd }) {
           <MatchScore value={item.match} />
         </div>
         <h1 className="billboard__title" dir="auto">{item.title}</h1>
+        {newDom && item.subtitle && (
+          <div className="billboard__subtitle" dir="auto">{item.subtitle}</div>
+        )}
         <div className="billboard__meta">
-          <MetaRow items={[
-            <span key="y">{item.year}</span>,
-            item.runtime ? <span key="r" className="nat-meta"><Icons.clock />{item.runtime}</span> : null,
-            item.cert ? <span key="c" className="nat-meta--cert">{item.cert}</span> : null,
-            item.rating ? <RatingStars key="s" value={item.rating} size="sm" /> : null,
-          ].filter(Boolean)} />
+          {newDom ? (
+            <MetaRow items={[
+              ...(item.year ? [<span key="y">{item.year}</span>] : []),
+              ...newDomainMeta(item).filter((m) => m && m.key !== 'y'),
+              item.rating ? <RatingStars key="s" value={item.rating} size="sm" /> : null,
+            ].filter(Boolean)} />
+          ) : (
+            <MetaRow items={[
+              <span key="y">{item.year}</span>,
+              item.runtime ? <span key="r" className="nat-meta"><Icons.clock />{item.runtime}</span> : null,
+              item.cert ? <span key="c" className="nat-meta--cert">{item.cert}</span> : null,
+              item.rating ? <RatingStars key="s" value={item.rating} size="sm" /> : null,
+            ].filter(Boolean)} />
+          )}
         </div>
         <p className="billboard__blurb" dir="auto">{item.synopsis || item.blurb}</p>
         {item.reason && (
@@ -412,18 +473,26 @@ export function Billboard({ item, onPlay, onDetails, onAdd }) {
           </p>
         )}
         <div className="billboard__btns">
-          <Button variant="brand" size="lg" iconLeft={item.on ? <Icons.play /> : <Icons.info />} onClick={onPlay}>
-            {item.on ? `Watch on ${item.on}` : 'Take a look'}
-          </Button>
+          {newDom ? (
+            <Button variant="brand" size="lg" iconLeft={<Icons.info />} onClick={onPlay}>
+              {item.reason ? `View ${NEW_DOMAIN_VERB[item.domain]}` : 'Take a look'}
+            </Button>
+          ) : (
+            <Button variant="brand" size="lg" iconLeft={item.on ? <Icons.play /> : <Icons.info />} onClick={onPlay}>
+              {item.on ? `Watch on ${item.on}` : 'Take a look'}
+            </Button>
+          )}
           <Button variant="secondary" size="lg" iconLeft={<Icons.info />} onClick={onDetails}>More info</Button>
-          <IconButton
-            variant="solid"
-            size="lg"
-            round
-            label={item.inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
-            icon={item.inWatchlist ? <Icons.check /> : <Icons.plus />}
-            onClick={onAdd}
-          />
+          {!newDom && (
+            <IconButton
+              variant="solid"
+              size="lg"
+              round
+              label={item.inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+              icon={item.inWatchlist ? <Icons.check /> : <Icons.plus />}
+              onClick={onAdd}
+            />
+          )}
           <ShareButton item={item} variant="solid" size="lg" round />
         </div>
       </div>
@@ -445,13 +514,25 @@ function PosterArt({ title, h }) {
 }
 
 export function PosterCard({ item, onPlay, onAdd, onClick }) {
+  const newDom = isNewDomain(item);
   const h = hueFrom(item.title);
-  const meta = [<span key="y">{item.year}</span>];
-  if (item.runtime) meta.push(<span key="r" className="nat-meta"><Icons.clock />{item.runtime}</span>);
-  if (item.cert) meta.push(<span key="c" className="nat-meta--cert">{item.cert}</span>);
-  if (item.match) meta.push(<MatchScore key="m" value={item.match} />);
 
-  const imgSrc = item.posterSrc || item.poster;
+  // Meta row: film/TV keeps the existing year + clock + cert + match
+  // arrangement exactly. New domains use the domain-specific meta builder.
+  const meta = newDom
+    ? [
+        ...(item.year ? [<span key="y">{item.year}</span>] : []),
+        ...newDomainMeta(item).filter((m) => m && m.key !== 'y'),
+        item.match ? <MatchScore key="m" value={item.match} /> : null,
+      ].filter(Boolean)
+    : [
+        <span key="y">{item.year}</span>,
+        item.runtime ? <span key="r" className="nat-meta"><Icons.clock />{item.runtime}</span> : null,
+        item.cert ? <span key="c" className="nat-meta--cert">{item.cert}</span> : null,
+        item.match ? <MatchScore key="m" value={item.match} /> : null,
+      ].filter(Boolean);
+
+  const imgSrc = posterImageSrc(item);
 
   return (
     <div className="nat-poster" role="button" tabIndex={0} onClick={onClick}
@@ -479,25 +560,37 @@ export function PosterCard({ item, onPlay, onAdd, onClick }) {
       </div>
       <div className="nat-poster__body">
         <div className="nat-poster__title" dir="auto">{item.title}</div>
+        {newDom && item.subtitle && (
+          <div className="nat-poster__subtitle" dir="auto">{item.subtitle}</div>
+        )}
         <MetaRow items={meta} />
         {item.rating && <RatingStars value={item.rating} />}
         {(item.reason || item.blurb) && (
           <div className="nat-poster__blurb" dir="auto">{item.reason || item.blurb}</div>
         )}
         <div className="nat-poster__foot">
-          {item.watch && item.watch.stream && item.watch.stream.length
-            ? <ProviderLogoRow providers={item.watch.stream} />
-            : <span className="nat-poster__on">
-                {item.on
-                  ? <React.Fragment>On <ProviderTag name={item.on} logo={item.onLogo} /></React.Fragment>
-                  : (item.kind === 'tv' ? 'TV Series' : 'Film')}
-              </span>}
-          <IconButton
-            variant="ghost" size="sm"
-            label={item.inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
-            icon={item.inWatchlist ? <Icons.check /> : <Icons.plus />}
-            onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
-          />
+          {newDom ? (
+            <>
+              <span className="nat-poster__on">{NEW_DOMAIN_LABEL[item.domain]}</span>
+              <span aria-hidden="true" /> {/* spacer to keep layout balanced without a button */}
+            </>
+          ) : (
+            <>
+              {item.watch && item.watch.stream && item.watch.stream.length
+                ? <ProviderLogoRow providers={item.watch.stream} />
+                : <span className="nat-poster__on">
+                    {item.on
+                      ? <React.Fragment>On <ProviderTag name={item.on} logo={item.onLogo} /></React.Fragment>
+                      : (item.kind === 'tv' ? 'TV Series' : 'Film')}
+                  </span>}
+              <IconButton
+                variant="ghost" size="sm"
+                label={item.inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+                icon={item.inWatchlist ? <Icons.check /> : <Icons.plus />}
+                onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
+              />
+            </>
+          )}
         </div>
       </div>
     </div>

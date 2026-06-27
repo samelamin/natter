@@ -5,6 +5,15 @@ import { Button, PosterCard, Billboard, PromptBar } from '@/components/natter/in
 import { Icons } from '@/components/natter/Icons.jsx';
 import { chunk, PAGE_SIZE } from '@/lib/paginate.js';
 
+const KIND_EMPTY = {
+  all: 'films and TV',
+  film: 'films',
+  tv: 'TV series',
+  book: 'books',
+  game: 'games',
+  recipe: 'recipes',
+};
+
 export function ResultsScreen({
   query,
   kind,
@@ -27,7 +36,9 @@ export function ResultsScreen({
 }) {
   const [refine, setRefine] = useState('');
   const gridRef = useRef(null);
-  const shown = (picks || []).filter((p) => kind === 'all' || p.kind === kind);
+  // New domains carry `domain` instead of `kind`. Filter accepts either so
+  // the same screen renders book/game/recipe results unchanged.
+  const shown = (picks || []).filter((p) => kind === 'all' || p.kind === kind || p.domain === kind);
   const featured = shown[0];
   const rest = shown.slice(1);
   const save = onToggleSave || (() => {});
@@ -72,6 +83,11 @@ export function ResultsScreen({
     intent.trim().length > 0 &&
     intent.trim().toLowerCase() !== (query || '').trim().toLowerCase();
 
+  // "Only what you can watch on …" is film/TV-specific. New domains don't go
+  // through provider filtering, so the note would be misleading.
+  const showProviderNote =
+    providers.length > 0 && (kind === 'film' || kind === 'tv' || kind === 'all');
+
   return (
     <div className="fade-up">
       <div className="results-head">
@@ -97,10 +113,12 @@ export function ResultsScreen({
       )}
       {finishing && (
         <div style={{ color: 'var(--text-mid)', fontSize: 'var(--text-sm)', marginTop: 6 }}>
-          Adding more + checking where to watch…
+          {kind === 'film' || kind === 'tv' || kind === 'all'
+            ? 'Adding more + checking where to watch…'
+            : 'Adding more picks…'}
         </div>
       )}
-      {providers.length > 0 && (
+      {showProviderNote && (
         <div style={{ margin: '-6px 0 14px', color: 'var(--text-mid)', fontSize: 'var(--text-sm)' }}>
           <Icons.tv /> Only what you can watch on {providers.join(', ')}
         </div>
@@ -111,7 +129,7 @@ export function ResultsScreen({
             {error
               ? error
               : (picks || []).length > 0
-                ? `No ${kind === 'tv' ? 'TV series' : 'films'} in this set — try "Everything".`
+                ? `No ${KIND_EMPTY[kind] || 'picks'} in this set — try another search.`
                 : 'Nothing quite fit. Want to loosen the filters?'}
           </div>
           {error && onRetry && (

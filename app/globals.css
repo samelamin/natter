@@ -8,4 +8,5 @@
 @import url('../styles/tokens/motion.css');
 @import url('../styles/tokens/base.css');
 @import url('../styles/ui.css');
+@import url('../styles/domains.css');
 @import url('../styles/site.css');
