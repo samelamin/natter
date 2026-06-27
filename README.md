@@ -26,7 +26,7 @@ and detail layout; the same transcribe → reason → stream pipeline drives the
 | --- | --- | --- |
 | Films & TV | [TMDB](https://www.themoviedb.org/) | required (`TMDB_KEY`) |
 | Books | [Google Books](https://developers.google.com/books) | optional (keyless works) |
-| Games | [RAWG](https://rawg.io/apidocs) | free key recommended (falls back to web search) |
+| Games | [IGDB](https://api-docs.igdb.com/) (Twitch) | free Client ID + Secret (falls back to LLM-listed titles) |
 | Recipes | [TheMealDB](https://www.themealdb.com/api.php) | keyless (`THEMEALDB_KEY=1`) |
 
 Films & TV keep the full feature set (watchlist, streaming-provider availability,
@@ -36,7 +36,7 @@ rich detail, search history, and sharing; watchlist save is films/TV-only for no
 ## Stack
 
 - **Next.js 16 / React 19** — App Router, standalone output for Docker.
-- **TMDB / Google Books / RAWG / TheMealDB** — per-domain catalogues via a
+- **TMDB / Google Books / IGDB / TheMealDB** — per-domain catalogues via a
   pluggable provider interface (`lib/providers/`).
 - **MiniMax M2** — the recommendation agent (OpenAI-compatible API).
 - **Groq (Whisper)** — speech-to-text, with OpenAI as an optional fallback.
@@ -66,7 +66,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `MINIMAX_BASE_URL` | no | Agent API base URL (default `https://api.minimax.io/v1`) |
 | `BRAVE_SEARCH_API_KEY` | no | Supplementary web search + game fallback |
 | `GOOGLE_BOOKS_API_KEY` | no | Books — keyless works; key raises quota |
-| `RAWG_API_KEY` | no | Games — recommended; web-search fallback without it |
+| `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` | no | Games — IGDB (Twitch); LLM-titles fallback without them |
 | `THEMEALDB_KEY` | no | Recipes — defaults to the free test key `1` |
 | `REDIS_URL` | no | L2 cache for searches + provider responses |
 

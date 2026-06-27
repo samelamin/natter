@@ -50,33 +50,22 @@ const BOOK_VOLUME_LIST = {
   items: [BOOK_VOLUME],
 };
 
+// IGDB game resource (Apicalypse-expanded).
 const GAME_RESULT = {
   id: 3498,
   name: 'Hollow Knight',
-  released: '2017-02-24',
-  rating: 4.4,
-  metacritic: 87,
-  background_image: 'https://media.rawg.io/media/games/4cf/4cf0c3a6f4cf0c3a6f4c.jpg',
-  genres: [{ name: 'Action' }, { name: 'Indie' }, { name: 'Metroidvania' }],
-  platforms: [
-    { platform: { name: 'PC' } },
-    { platform: { name: 'macOS' } },
-    { platform: { name: 'Linux' } },
+  first_release_date: 1487894400, // 2017-02-24 UTC
+  aggregated_rating: 87,
+  rating: 88,
+  cover: { image_id: 'co1rgi' },
+  genres: [{ name: 'Adventure' }, { name: 'Indie' }, { name: 'Platform' }],
+  platforms: [{ name: 'PC (Microsoft Windows)' }, { name: 'Mac' }, { name: 'Linux' }],
+  summary: 'Hollow Knight is a Metroidvania action game.',
+  involved_companies: [
+    { company: { name: 'Team Cherry' }, developer: true },
+    { company: { name: 'A Publisher' }, developer: false },
   ],
-  short_screenshots: [
-    { image: 'https://media.rawg.io/media/screenshots/4cf/ss1.jpg' },
-    { image: 'https://media.rawg.io/media/screenshots/4cf/ss2.jpg' },
-  ],
-};
-
-const GAME_DETAIL = {
-  ...GAME_RESULT,
-  description_raw: 'Hollow Knight is a Metroidvania action game.',
-};
-
-const GAME_LIST = {
-  count: 1,
-  results: [GAME_RESULT],
+  screenshots: [{ image_id: 'sc1' }, { image_id: 'sc2' }],
 };
 
 const MEAL_FULL = {
@@ -114,13 +103,32 @@ const MEAL_PARTIAL = {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 const originalFetch = globalThis.fetch;
-const savedKey = process.env.RAWG_API_KEY;
+const savedId = process.env.IGDB_CLIENT_ID;
+const savedSecret = process.env.IGDB_CLIENT_SECRET;
+
+function restoreEnv(name, val) {
+  if (val === undefined) delete process.env[name];
+  else process.env[name] = val;
+}
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  if (savedKey === undefined) delete process.env.RAWG_API_KEY;
-  else process.env.RAWG_API_KEY = savedKey;
+  restoreEnv('IGDB_CLIENT_ID', savedId);
+  restoreEnv('IGDB_CLIENT_SECRET', savedSecret);
 });
+
+/** Fetch stub: IGDB token endpoint → bearer; games endpoint → `apiBody`. */
+function mockIgdb(apiBody, { status = 200 } = {}) {
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    if (String(url).includes('id.twitch.tv/oauth2/token')) {
+      return { ok: true, status: 200, json: async () => ({ access_token: 'TKN', expires_in: 5_000_000, token_type: 'bearer' }) };
+    }
+    return { ok: status >= 200 && status < 300, status, json: async () => apiBody };
+  };
+  return calls;
+}
 
 function mockJsonResponse(urlMatch, body, { status = 200 } = {}) {
   const calls = [];
@@ -372,107 +380,95 @@ test('games.normalizeToPick: returns unified pick shape', () => {
     domain: 'game',
     sourceId: '3498',
     title: 'Hollow Knight',
-    subtitle: 'Action, Indie',
+    subtitle: 'Team Cherry', // developer (involved_companies.developer === true)
     year: 2017,
-    rating: 8.7,
-    image: 'https://media.rawg.io/media/games/4cf/4cf0c3a6f4cf0c3a6f4c.jpg',
+    rating: 8.7, // aggregated_rating 87 / 10
+    image: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co1rgi.jpg',
     reason: '',
     match: null,
     metaKeys: ['description', 'genres', 'metacritic', 'platforms', 'released', 'screenshots'],
   });
 });
 
-test('games.normalizeToPick: prefers metacritic/10 over rating*2 when metacritic present', () => {
-  // rating=4.4 → 8.8, but metacritic 87/10 = 8.7 wins.
-  const p = games.normalizeToPick({
-    id: 1, name: 'X', released: '2020-01-01', rating: 4.4, metacritic: 87,
-  });
-  assert.equal(p.rating, 8.7);
+test('games.normalizeToPick: rating from aggregated_rating/10', () => {
+  const p = games.normalizeToPick({ id: 1, name: 'X', aggregated_rating: 90 });
+  assert.equal(p.rating, 9);
+  assert.equal(p.meta.metacritic, 90);
 });
 
-test('games.normalizeToPick: falls back to rating*2 when metacritic missing', () => {
-  const p = games.normalizeToPick({
-    id: 1, name: 'X', released: '2020-01-01', rating: 4.25, metacritic: null,
-  });
-  assert.equal(p.rating, 8.5);
+test('games.normalizeToPick: falls back to user rating when no aggregated score', () => {
+  const p = games.normalizeToPick({ id: 1, name: 'X', rating: 80 });
+  assert.equal(p.rating, 8);
+  assert.equal(p.meta.metacritic, null);
 });
 
-test('games.normalizeToPick: rating is null when both rating and metacritic missing', () => {
-  const p = games.normalizeToPick({
-    id: 1, name: 'X', released: '2020-01-01', rating: null, metacritic: null,
-  });
+test('games.normalizeToPick: rating null when no scores', () => {
+  const p = games.normalizeToPick({ id: 1, name: 'X' });
   assert.equal(p.rating, null);
 });
 
-test('games.normalizeToPick: platforms and screenshots mapped to plain arrays', () => {
+test('games.normalizeToPick: platforms + screenshots mapped to plain arrays/URLs', () => {
   const p = games.normalizeToPick(GAME_RESULT);
-  assert.deepEqual(p.meta.platforms, ['PC', 'macOS', 'Linux']);
+  assert.deepEqual(p.meta.platforms, ['PC (Microsoft Windows)', 'Mac', 'Linux']);
   assert.deepEqual(p.meta.screenshots, [
-    'https://media.rawg.io/media/screenshots/4cf/ss1.jpg',
-    'https://media.rawg.io/media/screenshots/4cf/ss2.jpg',
+    'https://images.igdb.com/igdb/image/upload/t_screenshot_big/sc1.jpg',
+    'https://images.igdb.com/igdb/image/upload/t_screenshot_big/sc2.jpg',
   ]);
 });
 
-test('games.normalizeToPick: subtitle is top 2 genre names joined by comma', () => {
-  const p = games.normalizeToPick(GAME_RESULT);
-  assert.equal(p.subtitle, 'Action, Indie');
+test('games.normalizeToPick: subtitle falls back to genres when no developer', () => {
+  const p = games.normalizeToPick({ id: 1, name: 'X', genres: [{ name: 'RPG' }, { name: 'Indie' }, { name: 'Action' }] });
+  assert.equal(p.subtitle, 'RPG, Indie');
 });
 
-test('games.normalizeToPick: keeps description_raw in meta.description when present', () => {
-  const p = games.normalizeToPick(GAME_DETAIL);
+test('games.normalizeToPick: summary → meta.description', () => {
+  const p = games.normalizeToPick(GAME_RESULT);
   assert.equal(p.meta.description, 'Hollow Knight is a Metroidvania action game.');
 });
 
-// ── games.search ────────────────────────────────────────────────────────────
+// ── games.search / getDetails ────────────────────────────────────────────────
 
-test('games.search: throws code NO_KEY when RAWG_API_KEY missing', async () => {
-  delete process.env.RAWG_API_KEY;
+test('games.search: throws code NO_KEY when IGDB creds missing', async () => {
+  delete process.env.IGDB_CLIENT_ID;
+  delete process.env.IGDB_CLIENT_SECRET;
   await assert.rejects(
     () => games.search({ query: 'foo' }),
-    (err) => err.code === 'NO_KEY' && /RAWG_API_KEY/.test(err.message),
+    (err) => err.code === 'NO_KEY',
   );
 });
 
-test('games.search: hits /games with key + search + page_size + ordering', async () => {
-  process.env.RAWG_API_KEY = 'K';
-  const calls = mockJsonResponse(/api\.rawg\.io\/api\/games/, GAME_LIST);
+test('games.search: POSTs Apicalypse to IGDB with Client-ID + bearer token', async () => {
+  process.env.IGDB_CLIENT_ID = 'CID';
+  process.env.IGDB_CLIENT_SECRET = 'SECRET';
+  const calls = mockIgdb([GAME_RESULT]);
   const out = await games.search({ query: 'hollow knight', limit: 5 });
-  assert.equal(calls.length, 1);
-  const u = new URL(calls[0].url);
-  assert.equal(u.searchParams.get('key'), 'K');
-  assert.equal(u.searchParams.get('search'), 'hollow knight');
-  assert.equal(u.searchParams.get('page_size'), '5');
-  assert.equal(u.searchParams.get('ordering'), '-rating');
-  assert.equal(u.searchParams.get('search_precise'), 'true');
+  const api = calls.find((c) => c.url.includes('api.igdb.com/v4/games'));
+  assert.ok(api, 'should POST to the IGDB games endpoint');
+  assert.equal(api.init.method, 'POST');
+  assert.equal(api.init.headers['Client-ID'], 'CID');
+  assert.match(api.init.headers.Authorization, /^Bearer TKN$/);
+  assert.match(api.init.body, /search "hollow knight"/);
+  assert.match(api.init.body, /limit 5/);
   assert.equal(out.length, 1);
   assert.equal(out[0].id, 'game:3498');
 });
 
-test('games.search: passes filters.genres, filters.ordering, filters.dates', async () => {
-  process.env.RAWG_API_KEY = 'K';
-  const calls = mockJsonResponse(/api\.rawg\.io\/api\/games/, GAME_LIST);
-  await games.search({
-    query: 'foo',
-    filters: { genres: 'action,indie', ordering: 'released', dates: '2017-01-01,2017-12-31' },
-  });
-  const u = new URL(calls[0].url);
-  assert.equal(u.searchParams.get('genres'), 'action,indie');
-  assert.equal(u.searchParams.get('ordering'), 'released');
-  assert.equal(u.searchParams.get('dates'), '2017-01-01,2017-12-31');
-});
-
-test('games.getDetails: merges description_raw into meta.description', async () => {
-  process.env.RAWG_API_KEY = 'K';
-  mockJsonResponse(/api\.rawg\.io\/api\/games\/3498/, GAME_DETAIL);
+test('games.getDetails: queries by id and normalizes', async () => {
+  process.env.IGDB_CLIENT_ID = 'CID';
+  process.env.IGDB_CLIENT_SECRET = 'SECRET';
+  const calls = mockIgdb([GAME_RESULT]);
   const p = await games.getDetails('3498');
+  const api = calls.find((c) => c.url.includes('api.igdb.com/v4/games'));
+  assert.match(api.init.body, /where id = 3498/);
   assert.equal(p.id, 'game:3498');
   assert.equal(p.meta.description, 'Hollow Knight is a Metroidvania action game.');
 });
 
-test('games.search: throws on non-ok upstream', async () => {
-  process.env.RAWG_API_KEY = 'K';
-  mockJsonResponse(/api\.rawg\.io\/api\/games/, {}, { status: 503 });
-  await assert.rejects(games.search({ query: 'foo' }), /games 503/);
+test('games.search: throws on non-ok IGDB upstream', async () => {
+  process.env.IGDB_CLIENT_ID = 'CID';
+  process.env.IGDB_CLIENT_SECRET = 'SECRET';
+  mockIgdb({}, { status: 503 });
+  await assert.rejects(games.search({ query: 'foo' }), /igdb 503/);
 });
 
 // ── recipes.normalizeToPick ─────────────────────────────────────────────────
