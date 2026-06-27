@@ -74,6 +74,11 @@ export default function Page() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [watchItems, setWatchItems] = useState([]);
 
+  // Game platform filter — no sign-in needed; persisted in localStorage and
+  // sent with game searches. Keys: pc|playstation|xbox|switch|mobile.
+  const [platforms, setPlatforms] = useState([]);
+  const platformsRef = useRef([]);
+
   // Toast state
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
@@ -86,6 +91,25 @@ export default function Page() {
   // re-creating the callback on every toggle.
   const kindRef = useRef('all');
   useEffect(() => { kindRef.current = kind; }, [kind]);
+  useEffect(() => { platformsRef.current = platforms; }, [platforms]);
+  // Load the saved game platform filter once on mount.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('natter.platforms');
+      const a = raw ? JSON.parse(raw) : null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (Array.isArray(a)) setPlatforms(a);
+    } catch {
+      // ignore
+    }
+  }, []);
+  const togglePlatform = useCallback((key) => {
+    setPlatforms((prev) => {
+      const next = prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key];
+      try { localStorage.setItem('natter.platforms', JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
   // A signed-out "+ watchlist" tap remembers the pick and completes the save
   // right after sign-up/sign-in.
   const pendingSaveRef = useRef(null);
@@ -252,6 +276,32 @@ export default function Page() {
     setDeepening(false);
   }, []);
 
+  // Switching the domain tab takes you to a fresh home screen for that domain
+  // (NOT a re-run of the previous query in a different domain — that makes no
+  // sense across books/games/recipes). The domain is reflected in the URL so
+  // /?kind=game is shareable and lands here ready to search.
+  const goToDomain = useCallback((k) => {
+    searchSeqRef.current++;
+    abortRef.current?.abort();
+    setScreen('idle');
+    setQuery('');
+    setKind(k);
+    setDetail(null);
+    setError(null);
+    setPicks([]);
+    setResultProviders([]);
+    setFinishing(false);
+    setIntent('');
+    setAppendedCount(0);
+    setPageState(DEFAULT_PAGE_STATE);
+    setDeepening(false);
+    try {
+      window.history.pushState({ n: 'app' }, '', k && k !== 'all' ? `/?kind=${k}` : '/');
+    } catch {
+      // history unavailable — non-fatal
+    }
+  }, []);
+
   const runSearch = useCallback(
     async (text, kindArg, opts) => {
       const q = (typeof text === 'string' ? text : query).trim();
@@ -296,6 +346,10 @@ export default function Page() {
       try {
         const body = { query: q, kind: effectiveKind };
         if (opts?.prior) body.prior = opts.prior;
+        // Game platform filter (no sign-in) — only relevant for the games domain.
+        if (effectiveKind === 'game' && platformsRef.current.length) {
+          body.platforms = platformsRef.current;
+        }
 
         const res = await fetch('/api/recommend', {
           method: 'POST',
@@ -517,6 +571,11 @@ export default function Page() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (isValidKind(k)) setKind(selectorKind(k));
       runSearch(q.trim(), isValidKind(k) ? selectorKind(k) : undefined);
+    } else if (isValidKind(k)) {
+      // kind-only deep link (/?kind=game): land on the home screen with that
+      // domain selected, ready to search. Keep the URL so it stays shareable.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setKind(selectorKind(k));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -688,18 +747,7 @@ export default function Page() {
       <TopBar
         onHome={goHome}
         kind={kind}
-        setKind={(k) => {
-          setKind(k);
-          // film/tv/all stay a display filter over the current pool. Crossing a
-          // new-domain boundary (book/game/recipe) needs a fresh search — those
-          // come from separate APIs and can't be filtered out of movie results.
-          if (
-            screen === 'results' && activeQuery &&
-            (NEW_DOMAIN_KINDS.has(k) || NEW_DOMAIN_KINDS.has(kind))
-          ) {
-            runSearch(activeQuery, k);
-          }
-        }}
+        setKind={(k) => { if (k !== kind) goToDomain(k); }}
         showFilter={screen === 'idle' || screen === 'results'}
         user={user}
         onSignIn={() => setAuthOpen('signin')}
@@ -730,6 +778,8 @@ export default function Page() {
               micState={promptMicState}
               onMic={handleMicClick}
               onFeedback={() => setFeedbackOpen(true)}
+              platforms={platforms}
+              onTogglePlatform={togglePlatform}
             />
             <RecentPicks user={user} onOpenSet={openHistorySet} />
             <IdleWatchlistRow

@@ -4,6 +4,7 @@ import { recCacheKey, buildDonePayload } from '@/lib/recCache.js';
 import { classifyDomain } from '@/lib/domainClassify.js';
 import { NEW_DOMAINS } from '@/lib/providers/index.js';
 import { domainRecommend } from '@/lib/domainRecommend.js';
+import { platformIdsFor } from '@/lib/providers/games.js';
 
 // ── Whole-result cache ───────────────────────────────────────────────────────
 // A search costs an LLM loop + web search + dozens of TMDB calls and takes
@@ -57,11 +58,16 @@ export async function POST(request) {
   let query = '';
   let kind = 'all';
   let prior;
+  let platformKeys = [];
 
   try {
     const body = await request.json();
     query = (body.query || '').trim();
     kind = body.kind || 'all';
+    // Game platform filter (UI-supplied keys: pc|playstation|xbox|switch|mobile).
+    if (Array.isArray(body.platforms)) {
+      platformKeys = body.platforms.filter((p) => typeof p === 'string').slice(0, 8);
+    }
     // Strict coercion — never 500 on malformed prior.
     prior = parsePrior(body.prior);
 
@@ -146,7 +152,7 @@ export async function POST(request) {
   const filterActive = services.length > 0 || providersFromQuery(query).length > 0;
   // Bypass the whole-result cache when a per-user filter or refine context is
   // present — results would be incorrect or personalized.
-  const bypassCache = filterActive || !!prior || excludeIds.size > 0 || SPECIFIC_QUERY_RE.test(query);
+  const bypassCache = filterActive || !!prior || excludeIds.size > 0 || SPECIFIC_QUERY_RE.test(query) || platformKeys.length > 0;
   const cacheKey = recCacheKey(query, finalKind);
 
   const encoder = new TextEncoder();
@@ -196,6 +202,7 @@ export async function POST(request) {
             query,
             domain: finalKind,
             excludeIds,
+            platforms: finalKind === 'game' ? platformIdsFor(platformKeys) : [],
             onStep: (label) => emit({ type: 'step', label }),
             onCandidates: (items) => emit({ type: 'candidates', items }),
             onPartial: ({ kind: k, intent, picks, phase }) => emit({ type: 'partial', kind: k, intent, picks, phase }),

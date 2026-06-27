@@ -53,7 +53,15 @@ function poolForKind(kind) {
   return POOL_BY_DOMAIN[kind] || POOL;
 }
 
-export function IdleScreen({ kind = 'all', query, setQuery, onSend, micState, onMic, onFeedback }) {
+const PLATFORM_OPTS = [
+  { key: 'pc', label: 'PC' },
+  { key: 'playstation', label: 'PlayStation' },
+  { key: 'xbox', label: 'Xbox' },
+  { key: 'switch', label: 'Switch' },
+  { key: 'mobile', label: 'Mobile' },
+];
+
+export function IdleScreen({ kind = 'all', query, setQuery, onSend, micState, onMic, onFeedback, platforms = [], onTogglePlatform }) {
   // Hydration-stable: start with first 5 of the active pool, randomise after mount.
   const [chips, setChips] = useState(poolForKind(kind).slice(0, 5));
   // Recent searches — empty until useEffect runs (hydration safety)
@@ -113,6 +121,18 @@ export function IdleScreen({ kind = 'all', query, setQuery, onSend, micState, on
             micState={micState}
             onMic={onMic}
           />
+          {kind === 'game' && onTogglePlatform && (
+            <div className="chips" style={{ marginTop: 4 }}>
+              <span style={{ color: 'var(--text-lo)', fontSize: 'var(--text-xs)', alignSelf: 'center', marginRight: 4 }}>
+                Platform
+              </span>
+              {PLATFORM_OPTS.map((p) => (
+                <Tag key={p.key} selected={platforms.includes(p.key)} onClick={() => onTogglePlatform(p.key)}>
+                  {p.label}
+                </Tag>
+              ))}
+            </div>
+          )}
           {recents.length > 0 && (
             <div className="chips">
               <span style={{ color: 'var(--text-lo)', fontSize: 'var(--text-xs)', alignSelf: 'center', marginRight: 4 }}>
